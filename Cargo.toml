@@ -1,0 +1,17 @@
+[workspace]
+resolver = "3"
+members = [ 
+    "common",
+    "configurator",
+    "executor", 
+    "fetcher"
+]
+
+# https://github.com/console-rs/console consider this for styling
+
+[workspace.dependencies]
+clap = "4.5.42"
+dialoguer = "0.11.0"
+serde = { version = "1.0.219", features = ["derive"] }
+chrono = { version = "0.4.41", features = ["serde"] }
+toml = "0.9.5"

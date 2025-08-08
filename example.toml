@@ -1,0 +1,26 @@
+[config]
+start-time = 1979-05-27 07:32:00Z # example start time (optional for immidiate start)
+end-time = 1979-05-28 07:32:00Z # example end time (if not provided will be treated as on-off measurement)
+interval = 300 # default 5 minutes
+
+[config.ping]
+packet-count = 3
+size = 48
+
+[config.http] # only works for anchors
+path = "/"
+header-bytes = ""
+port = 80
+version = 1.1
+method = ""
+
+[probes]
+ids = ["probe-1", "probe-2", "probe-3"]
+
+[topology]
+mode = "all-to-all"  # options: "all-to-all" or "custom"
+
+# If topology is not set to "all-to-"ll" measurements are constructed based on given topology pairs
+[[topology.pairs]]
+from = "probe-1"
+to = "probe-2"
