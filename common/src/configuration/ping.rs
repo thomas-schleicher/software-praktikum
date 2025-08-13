@@ -2,8 +2,8 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PingConfig {
-    packet_count: u32,
-    size: u32,
+    pub packet_count: u32,
+    pub size: u32,
 }
 
 #[derive(Default, Debug)]

@@ -10,8 +10,13 @@ members = [
 # https://github.com/console-rs/console consider this for styling
 
 [workspace.dependencies]
-clap = "4.5.42"
+clap = { version = "4.5.45", features = ["derive"] }
 dialoguer = "0.11.0"
 serde = { version = "1.0.219", features = ["derive"] }
 chrono = { version = "0.4.41", features = ["serde"] }
 toml = "0.9.5"
+reqwest = { version = "0.12.23", features = ["json"] }
+serde_json = "1.0.142"
+tokio = { version = "1.47.1", features = ["full"] }
+futures = "0.3.31"
+thiserror = "2.0.14"

@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Topology {
-    mode: String,
+    pub mode: String,
     pub pairs: Vec<TopologicalPair>,
 }
 
@@ -14,8 +14,8 @@ impl Topology {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TopologicalPair {
-    from: String,
-    to: String,
+    pub from: String,
+    pub to: String,
 }
 
 impl TopologicalPair {

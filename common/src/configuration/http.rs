@@ -2,11 +2,11 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HttpConfig {
-    path: String,
-    header_bytes: String,
-    port: u16,
-    version: f32,
-    method: String,
+    pub path: String,
+    pub header_bytes: String,
+    pub port: u16,
+    pub version: f32,
+    pub method: String,
 }
 
 #[derive(Debug, Default)]

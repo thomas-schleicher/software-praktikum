@@ -5,16 +5,16 @@ use crate::configuration::{http::HttpConfig, ping::PingConfig, probes::Probes, t
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Configuration {
-    start_time: Option<DateTime<Utc>>,
-    end_time: Option<DateTime<Utc>>,
-    interval: Option<u32>,
-    mode: Option<String>,
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub interval: Option<u32>,
+    pub mode: Option<String>,
     #[serde(rename = "ping")]
-    ping_configuration: Option<PingConfig>,
+    pub ping_configuration: Option<PingConfig>,
     #[serde(rename = "http")]
-    http_configuration: Option<HttpConfig>,
-    probes: Option<Probes>, //TODO: think about if I dont want to have this as optional
-    topology: Option<Topology>,
+    pub http_configuration: Option<HttpConfig>,
+    pub probes: Option<Probes>, //TODO: think about if I dont want to have this as optional
+    pub topology: Option<Topology>,
 }
 
 #[derive(Default, Debug)]
