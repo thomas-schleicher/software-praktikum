@@ -1,10 +1,12 @@
-use std::{fmt::Error, fs, net::Ipv4Addr};
+use std::fs;
 
-use common::{api::{config::Config, probes}, configuration::configuration::Configuration};
-use futures::future::{join_all};
+use common::{api::definitions::{Definitions, DefinitionsBuilder}, configuration::configuration::Configuration};
+use futures::future::{try_join_all};
 use reqwest::Client;
 
 use clap::Parser;
+
+use crate::probe::Probe;
 
 mod probe;
 
@@ -14,41 +16,80 @@ struct Cli {
     config: String,
 }
 
+#[derive(Debug)]
+struct TargetWithSources {
+    pub target: String,
+    pub sources: Vec<String>
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
-    // Step 1 load configuration file into struct
-
     let args = Cli::parse();
-
-    let content = fs::read_to_string(args.config)?;
-    let config: Configuration = toml::from_str(&content)?;
-
-    println!("{:?}", config);
-
-    // Step 2 parse and process config into final requests
+    let config = load_config(&args.config)?;
 
     let client = Client::new();
+    let probes = fetch_all_probes(&client, &config).await?;
+    let connections = generate_connections_from_probes(probes)?;
 
-    if let Some(probe_config) = &config.probes {
-        let probe_futures = probe_config
-            .probes
-            .iter()
-            .map(|probe_id| probe::fetch_probe_information(&client, &probe_id));
+    let ping_definition_template= config.ping_configuration.as_ref().map(|ping_config| {
+        DefinitionsBuilder::new()
+            .def_type("ping")
+            .packets(ping_config.packet_count)
+            .size(ping_config.size)
+            .interval(config.interval)
+            .build()
+            .unwrap()
+    });
 
-        let future_results = join_all(probe_futures).await;
-        println!("{:?}", future_results);
-    }
-    
+
+    //TODO: test how to set start and end time of a measurement using the API
+
+    // get the rest of the stuff from the config and send the requests based on the amount of connections.
     // Step 3 send requests and handle results
 
     Ok(())
 }
 
-// async fn convert_configuration(cfg: &Configuration) -> Result<Vec<Config>, Box<dyn std::error::Error>> {
-//     let mut api_configurations = Vec::new();
+fn load_config(path: &str) -> Result<Configuration, Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(path)?;
+    let config: Configuration = toml::from_str(&content)?;
+    Ok(config)
+}
+
+async fn fetch_all_probes(client: &Client, config: &Configuration) -> Result<Vec<Probe>, Box<dyn std::error::Error>> {
+    let Some(probe_config) = &config.probes else {
+        return Err("No probes in configuration".into());
+    };
+
+    let futures = probe_config
+        .probes
+        .iter()
+        .map(|probe_id| probe::fetch_probe_information(&client, &probe_id));
+
+    let probes = try_join_all(futures).await?;
+    Ok(probes)
+}
+
+fn generate_connections_from_probes(mut probes: Vec<Probe>) -> Result<Vec<TargetWithSources>, &'static str> {
+    if probes.len() < 2 {
+        return Err("Not enught probes to create a connection.");
+    }
     
+    let mut configurations = Vec::new();
+ 
+    while let Some(target_probe) = probes.pop() {
+        if probes.is_empty() {
+            break;
+        }
+        let sources: Vec<String> = probes.iter()
+            .map(|probe| probe.probe_id.to_string())
+            .collect();
+            
+        configurations.push(TargetWithSources {
+            target: target_probe.probe_id.to_string(),
+            sources,
+        });
+    }
 
-
-//     Ok(api_configurations)
-// }
+    Ok(configurations)
+}

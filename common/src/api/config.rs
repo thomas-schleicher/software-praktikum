@@ -3,8 +3,8 @@ use crate::api::{definitions::Definitions, probes::Probes};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    is_oneoff: bool, //TODO
-    billed_to: String, //TODO: at executor
-    definitions: Vec<Definitions>,
-    probes: Vec<Probes>,
+    pub is_oneoff: bool, //TODO
+    pub billed_to: String, //TODO: at executor
+    pub definitions: Vec<Definitions>,
+    pub probes: Vec<Probes>,
 }

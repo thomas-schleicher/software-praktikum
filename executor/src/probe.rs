@@ -4,6 +4,8 @@ use thiserror::Error;
 
 #[derive(Debug, Deserialize)]
 pub struct Probe {
+    #[serde(skip)]
+    pub probe_id: u32,
     pub address_v4: String,
     pub country_code: String,
     pub is_anchor: bool,
@@ -17,7 +19,7 @@ struct ProbeStatus {
 
 #[derive(Debug, Error)]
 pub enum ProbeError {
-    #[error("API request faile: {0}")]
+    #[error("API request failed: {0}")]
     API(#[from] reqwest::Error),
 
     #[error("Probe {0} is offline")]
@@ -36,7 +38,9 @@ pub async fn fetch_probe_information(client: &Client, probe_id: &str) -> Result<
         .await?
         .error_for_status()?;
 
-    let probe: Probe = res.json().await?;
+    let mut probe: Probe = res.json().await?;
+    probe.probe_id = probe_id.parse().unwrap();    //This shouldnt fail because the api request was successful
+    let probe = probe;                      // Make it imutable again
 
     if probe.status.id != 1 {
         return Err(ProbeError::Offline(probe_id.to_string()));
