@@ -1,6 +1,6 @@
-use std::fs;
+use std::{fs, vec};
 
-use common::{api::definitions::{Definitions, DefinitionsBuilder}, configuration::configuration::Configuration};
+use common::{api::{config::Config, definitions::{Definitions, DefinitionsBuilder}, probes::Probes}, configuration::configuration::Configuration};
 use futures::future::{try_join_all};
 use reqwest::Client;
 
@@ -41,13 +41,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap()
     });
 
+    //TODO: handle input for this
+    let billed_to = "thschleicher@edu.aau.at".to_string();
 
-    //TODO: test how to set start and end time of a measurement using the API
+    //TODO: handle the defintion template creation
+    let definitions = vec![ping_definition_template.unwrap()]; 
 
-    // get the rest of the stuff from the config and send the requests based on the amount of connections.
+    let configs = create_api_configs(
+        config.start_time.map(|time| time.timestamp() as u64), 
+        config.end_time.map(|time| time.timestamp() as u64), 
+        billed_to, connections, definitions);
+    
+    println!("{:?}", configs);
+
     // Step 3 send requests and handle results
 
     Ok(())
+}
+
+fn create_api_configs(start_time: Option<u64>, end_time: Option<u64>, billed_to: String, connections: Vec<TargetWithSources>, definition_templates: Vec<Definitions>) -> Vec<Config> {
+    connections.iter().map(|connection| {
+        let probes: Vec<Probes> = vec![
+            Probes { 
+                probe_type: "probes".to_string(), 
+                value: connection.sources.join(","),
+                requested: connection.sources.len()
+            }
+        ];
+
+        let definitions: Vec<Definitions> = definition_templates
+            .iter()
+            .map(|template| DefinitionsBuilder::from_template(template)
+                .target(connection.target.clone())
+                .build()
+                .unwrap()
+            ).collect();
+
+        Config { 
+            start_time: start_time, 
+            end_time: end_time, 
+            is_oneoff: end_time.is_none(), //expect end time none if oneoff measurement 
+            billed_to: billed_to.clone(),
+            probes: probes,
+            definitions: definitions
+        }
+    }).collect()
 }
 
 fn load_config(path: &str) -> Result<Configuration, Box<dyn std::error::Error>> {

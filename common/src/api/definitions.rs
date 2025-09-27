@@ -103,7 +103,7 @@ impl DefinitionsBuilder {
             size: self.size.unwrap(),
             skip_dns_check: self.skip_dns_check.unwrap(),
             include_probe_id: self.include_probe_id.unwrap(),
-            target: self.target.ok_or("Missing field: target")?,
+            target: self.target.unwrap_or("".to_string()), //TODO: handle target properly
             tags: self.tags.unwrap(),
             interval: self.interval,
         })

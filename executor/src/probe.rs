@@ -13,7 +13,7 @@ pub struct Probe {
 }
 
 #[derive(Debug, Deserialize)]
-struct ProbeStatus {
+pub struct ProbeStatus {
     pub id: u32,
 }
 
