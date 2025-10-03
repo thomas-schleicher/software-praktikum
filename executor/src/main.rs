@@ -1,6 +1,6 @@
 use std::{fs, vec};
 
-use common::{api::{config::Config, definitions::{Definitions, DefinitionsBuilder}, probes::Probes}, configuration::configuration::Configuration};
+use common::{api::{config::Config, definitions::{Definition, DefinitionTemplate, DefinitionTemplateBuilder}, probes::Probes}, configuration::configuration::Configuration};
 use futures::future::{try_join_all};
 use reqwest::Client;
 
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let connections = generate_connections_from_probes(probes)?;
 
     let ping_definition_template= config.ping_configuration.as_ref().map(|ping_config| {
-        DefinitionsBuilder::new()
+        DefinitionTemplateBuilder::new()
             .def_type("ping")
             .packets(ping_config.packet_count)
             .size(ping_config.size)
@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn create_api_configs(start_time: Option<u64>, end_time: Option<u64>, billed_to: String, connections: Vec<TargetWithSources>, definition_templates: Vec<Definitions>) -> Vec<Config> {
+fn create_api_configs(start_time: Option<u64>, end_time: Option<u64>, billed_to: String, connections: Vec<TargetWithSources>, definition_templates: Vec<DefinitionTemplate>) -> Vec<Config> {
     connections.iter().map(|connection| {
         let probes: Vec<Probes> = vec![
             Probes { 
@@ -69,13 +69,10 @@ fn create_api_configs(start_time: Option<u64>, end_time: Option<u64>, billed_to:
             }
         ];
 
-        let definitions: Vec<Definitions> = definition_templates
+        let definitions: Vec<Definition> = definition_templates
             .iter()
-            .map(|template| DefinitionsBuilder::from_template(template)
-                .target(connection.target.clone())
-                .build()
-                .unwrap()
-            ).collect();
+            .map(|template| template.to_definition(connection.target.clone()))
+            .collect();
 
         Config { 
             start_time: start_time, 

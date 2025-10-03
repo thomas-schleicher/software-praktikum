@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Definitions {
+pub struct Definition {
     #[serde(rename = "type")]
     pub def_type: String,
     pub af: u8,
@@ -15,7 +15,36 @@ pub struct Definitions {
     pub interval: Option<u32>,
 }
 
-pub struct DefinitionsBuilder {
+pub struct DefinitionTemplate {
+    pub def_type: String,
+    pub af: u8,
+    pub resolve_on_probe: bool,
+    pub packets: u32,
+    pub size: u32,
+    pub skip_dns_check: bool,
+    pub include_probe_id: bool,
+    pub tags: Vec<String>,
+    pub interval: Option<u32>, 
+}
+
+impl DefinitionTemplate {
+    pub fn to_definition(&self, target: String) -> Definition {
+        Definition {
+            def_type: self.def_type.clone(),
+            af: self.af,
+            resolve_on_probe: self.resolve_on_probe,
+            packets: self.packets,
+            size: self.size,
+            skip_dns_check: self.skip_dns_check,
+            include_probe_id: self.include_probe_id,
+            target: target,
+            tags: self.tags.clone(),
+            interval: self.interval,
+        }
+    }
+}
+
+pub struct DefinitionTemplateBuilder {
     def_type: Option<String>,
     af: Option<u8>,
     resolve_on_probe: Option<bool>,
@@ -28,7 +57,7 @@ pub struct DefinitionsBuilder {
     interval: Option<u32>,
 }
 
-impl DefinitionsBuilder {
+impl DefinitionTemplateBuilder {
     pub fn new() -> Self {
         Self {
             def_type: None,
@@ -79,11 +108,6 @@ impl DefinitionsBuilder {
         self
     }
 
-    pub fn target(mut self, t: impl Into<String>) -> Self {
-        self.target = Some(t.into());
-        self
-    }
-
     pub fn tags(mut self, tags: Vec<String>) -> Self {
         self.tags = Some(tags);
         self
@@ -94,33 +118,17 @@ impl DefinitionsBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Definitions, &'static str> {
-        Ok(Definitions {
-            def_type: self.def_type.ok_or("Missing field: type")?,
+    pub fn build(self) -> Result<DefinitionTemplate, &'static str> {
+        Ok(DefinitionTemplate {
+            def_type: self.def_type.ok_or("Missing field: definition type")?,
             af: self.af.unwrap(),
             resolve_on_probe: self.resolve_on_probe.unwrap(),
             packets: self.packets.unwrap(),
             size: self.size.unwrap(),
             skip_dns_check: self.skip_dns_check.unwrap(),
             include_probe_id: self.include_probe_id.unwrap(),
-            target: self.target.unwrap_or("".to_string()), //TODO: handle target properly
             tags: self.tags.unwrap(),
-            interval: self.interval,
+            interval: self.interval, 
         })
-    }
-
-    pub fn from_template(template: &Definitions) -> Self {
-        Self {
-            def_type: Some(template.def_type.clone()),
-            af: Some(template.af),
-            resolve_on_probe: Some(template.resolve_on_probe),
-            packets: Some(template.packets),
-            size: Some(template.size),
-            skip_dns_check: Some(template.skip_dns_check),
-            include_probe_id: Some(template.include_probe_id),
-            target: None, // must be set later
-            tags: Some(template.tags.clone()),
-            interval: template.interval,
-        }
     }
 }

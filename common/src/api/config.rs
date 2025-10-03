@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::api::{definitions::Definitions, probes::Probes};
+use crate::api::{definitions::Definition, probes::Probes};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -9,6 +9,6 @@ pub struct Config {
     pub end_time: Option<u64>,
     pub is_oneoff: bool, //TODO
     pub billed_to: String, //TODO: at executor
-    pub definitions: Vec<Definitions>,
+    pub definitions: Vec<Definition>,
     pub probes: Vec<Probes>,
 }
