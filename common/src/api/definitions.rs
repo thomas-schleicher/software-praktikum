@@ -52,7 +52,6 @@ pub struct DefinitionTemplateBuilder {
     size: Option<u32>,
     skip_dns_check: Option<bool>,
     include_probe_id: Option<bool>,
-    target: Option<String>,
     tags: Option<Vec<String>>,
     interval: Option<u32>,
 }
@@ -67,7 +66,6 @@ impl DefinitionTemplateBuilder {
             size: Some(48),
             skip_dns_check: Some(false),
             include_probe_id: Some(false),
-            target: None,
             tags: Some(vec![]),
             interval: None,
         }
