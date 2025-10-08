@@ -34,6 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //TODO: handle input for this
     let billed_to = "thschleicher@edu.aau.at".to_string();
+    //TODO: get api key from console
 
     let definitions: Vec<DefinitionTemplate> = [
         ping_definition_template,
