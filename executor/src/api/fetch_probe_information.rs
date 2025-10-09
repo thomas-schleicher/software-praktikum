@@ -8,9 +8,9 @@ use thiserror::Error;
 pub struct ProbeInformation {
     #[serde(skip)]
     pub probe_id: u32,
-    // pub address_v4: String,
+    pub address_v4: String,
     // pub country_code: String,
-    // pub is_anchor: bool,
+    pub is_anchor: bool,
     pub status: ProbeStatus,
 }
 

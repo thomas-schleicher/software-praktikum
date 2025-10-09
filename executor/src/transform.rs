@@ -1,98 +1,147 @@
 use crate::api::fetch_probe_information::ProbeInformation;
-use common::api::definitions::DefinitionTemplateBuilder;
-use common::api::{
-    config::Config,
-    definitions::{Definition, DefinitionTemplate},
-    probes::Probes,
-};
+use crate::domain::config::Config;
+use crate::domain::definition::{DefinitionTemplate, HttpDefinition, PingDefinition};
+use crate::domain::probes::Probes;
 use common::configuration::configuration::Configuration;
-//TODO: continue to refactor this away from main
-//TODO: make target with sources private and make generate connections private
-
+use common::configuration::topology::Topology;
 #[derive(Debug)]
-pub struct TargetWithSources {
+struct TargetWithSources {
     pub target: String,
     pub sources: Vec<String>,
 }
 
 pub fn generate_api_configs(
     measurement_configuration: Configuration,
-    billed_to: String,
+    billed_to: &str,
     probe_information: Vec<ProbeInformation>,
-) -> Result<Vec<Config>, String> {
-    //TODO: add better errors
+) -> Result<Vec<Config>, &'static str> {
+    let definitions_templates =
+        match create_definition_templates_from_configuration(&measurement_configuration) {
+            Ok(definitions) => definitions,
+            Err(e) => return Err(e), //TODO: consider wrapping the error here
+        };
 
-    // let definitions = create_definition_templates_from_configuration(&measurement_configuration);
+    let Ok(connections) = generate_connections_from_configuration(
+        probe_information,
+        measurement_configuration.topology,
+    ) else {
+        return Err(""); //TODO: come up with better error message
+    };
 
-    // let connections = generate_connections_from_probes(probe_information);
+    let configs = create_api_configs(
+        measurement_configuration
+            .start_time
+            .map(|time| time.timestamp() as u64),
+        measurement_configuration
+            .end_time
+            .map(|time| time.timestamp() as u64),
+        billed_to,
+        connections,
+        definitions_templates,
+    );
 
-    // let configs = transform::create_api_configs(
-    //     config.start_time.map(|time| time.timestamp() as u64),
-    //     config.end_time.map(|time| time.timestamp() as u64),
-    //     billed_to,
-    //     connections,
-    //     definitions,
-    // );
     Ok(configs)
 }
 
-//TODO: better error handling + change definition template to handle multiple kinds of definition types
 fn create_definition_templates_from_configuration(
     config: &Configuration,
-) -> Result<Vec<DefinitionTemplate>, String> {
-    //TODO: give builder better error handling in the form of custom errors
+) -> Result<Vec<DefinitionTemplate>, &'static str> {
     let mut templates: Vec<DefinitionTemplate> = Vec::new();
 
     if let Some(ping_config) = &config.ping_configuration {
-        let ping_template = DefinitionTemplateBuilder::new()
-            .def_type("ping")
+        let ping_template = PingDefinition::template()
             .packets(ping_config.packet_count)
             .size(ping_config.size)
-            .interval(config.interval)
-            .build()
-            .unwrap(); //TODO: update builder to use an error and propagate error with ?
-        templates.push(ping_template);
+            .interval(config.interval);
+        templates.push(DefinitionTemplate::Ping(ping_template));
     }
 
     if let Some(http_config) = &config.http_configuration {
-        let http_template = DefinitionTemplateBuilder::new().build().unwrap(); //TODO: update builder to allow for http templates
-        templates.push(http_template);
+        let https_template = HttpDefinition::template();
+        //TODO: add config parameters for http measurements
+        templates.push(DefinitionTemplate::Http(https_template));
+    }
+
+    if templates.is_empty() {
+        return Err("No definition templates provided in configuration.");
     }
 
     Ok(templates)
 }
 
-pub fn generate_connections_from_probes(
-    mut probes: Vec<ProbeInformation>,
+fn generate_connections_from_configuration(
+    probes: Vec<ProbeInformation>,
+    topology: Option<Topology>,
 ) -> Result<Vec<TargetWithSources>, &'static str> {
     if probes.len() < 2 {
         return Err("Not enough probes to create a connection.");
     }
 
-    let mut configurations = Vec::new();
+    let mode = topology
+        .as_ref()
+        .map(|topology| topology.mode.as_str())
+        .unwrap_or("all-to-all");
 
-    while let Some(target_probe) = probes.pop() {
-        if probes.is_empty() {
-            break;
+    match mode {
+        "all-to-all" => {
+            let connections = build_all_to_all_connections(&probes);
+            Ok(connections)
         }
+        "custom" => {
+            todo!("Not implemented yet"); //TODO
+        }
+        _ => Err("Invalid topology mode. Cannot build connections."),
+    }
+}
+
+fn build_all_to_all_connections(probes: &Vec<ProbeInformation>) -> Vec<TargetWithSources> {
+    let mut configurations = Vec::with_capacity(probes.len());
+
+    for (i, target_probe) in probes
+        .iter()
+        .enumerate()
+        .take(probes.len().saturating_sub(1))
+    {
         let sources: Vec<String> = probes
             .iter()
-            .map(|probe| probe.probe_id.to_string())
+            .enumerate()
+            .filter(|(j, _)| j > &i)
+            .map(|(_, probe)| probe.address_v4.clone())
             .collect();
 
         configurations.push(TargetWithSources {
             target: target_probe.probe_id.to_string(),
             sources,
-        });
+        })
     }
 
-    Ok(configurations)
+    configurations
+
+    // OLD IMPL IN CASE THE NEW ONE FAILS //TODO: REMOVE IF DONE
+    // let mut configurations = Vec::new();
+    //
+    // while let Some(target_probe) = probes.pop() {
+    //     if probes.is_empty() {
+    //         break;
+    //     }
+    //     let sources: Vec<String> = probes
+    //         .iter()
+    //         .map(|probe| probe.probe_id.to_string())
+    //         .collect();
+    //
+    //     configurations.push(TargetWithSources {
+    //         target: target_probe.probe_id.to_string(),
+    //         sources,
+    //     });
+    // }
+    //
+    // Ok(configurations)
 }
 
-pub fn create_api_configs(
+fn create_api_configs(
     start_time: Option<u64>,
     end_time: Option<u64>,
-    billed_to: String,
+    billed_to: &str,
     connections: Vec<TargetWithSources>,
     definition_templates: Vec<DefinitionTemplate>,
 ) -> Vec<Config> {
@@ -100,21 +149,23 @@ pub fn create_api_configs(
         .iter()
         .map(|connection| {
             let probes: Vec<Probes> = vec![Probes {
-                probe_type: "probes".to_string(),
+                probe_type: String::from("probes"),
                 value: connection.sources.join(","),
                 requested: connection.sources.len(),
             }];
 
-            let definitions: Vec<Definition> = definition_templates
+            let definitions = definition_templates
                 .iter()
-                .map(|template| template.to_definition(connection.target.clone()))
+                .map(|definition_template| {
+                    definition_template.with_target(connection.target.as_str())
+                })
                 .collect();
 
             Config {
                 start_time,
                 end_time,
                 is_oneoff: end_time.is_none(), //expect end time none if oneoff measurement
-                billed_to: billed_to.clone(),
+                billed_to: billed_to.to_string(),
                 probes,
                 definitions,
             }

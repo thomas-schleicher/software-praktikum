@@ -1,4 +1,4 @@
-use common::api::config::Config;
+use crate::domain::config::Config;
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use thiserror::Error;

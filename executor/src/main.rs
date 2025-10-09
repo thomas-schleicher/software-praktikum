@@ -1,9 +1,10 @@
-use common::api::definitions::{DefinitionTemplate, DefinitionTemplateBuilder};
+use crate::api::create_measurement::create_ripe_measurement;
+use clap::Parser;
+use futures::future::try_join_all;
 use reqwest::Client;
 
-use clap::Parser;
-
 mod api;
+mod domain;
 mod input;
 mod transform;
 
@@ -17,45 +18,27 @@ struct Cli {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
     let config = input::load_config(&args.config)?;
-
     let client = Client::new();
-    let probes = api::fetch_probe_information::fetch_all_probes(&client, &config).await?;
-    let connections = transform::generate_connections_from_probes(probes)?;
-
-    let ping_definition_template = config.ping_configuration.as_ref().map(|ping_config| {
-        DefinitionTemplateBuilder::new()
-            .def_type("ping")
-            .packets(ping_config.packet_count)
-            .size(ping_config.size)
-            .interval(config.interval)
-            .build()
-            .unwrap()
-    });
 
     //TODO: handle input for this
-    let billed_to = "thschleicher@edu.aau.at".to_string();
+    let billed_to = "thschleicher@edu.aau.at";
     //TODO: get api key from console
+    let api_key = "Test Key";
 
-    let definitions: Vec<DefinitionTemplate> = [
-        ping_definition_template,
-        //TODO: add other definition types
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
+    let probe_info = api::fetch_probe_information::fetch_all_probes(&client, &config).await?;
 
-    let configs = transform::create_api_configs(
-        config.start_time.map(|time| time.timestamp() as u64),
-        config.end_time.map(|time| time.timestamp() as u64),
-        billed_to,
-        connections,
-        definitions,
-    );
+    let Ok(configs) = transform::generate_api_configs(config, billed_to, probe_info) else {
+        return Err("Could not generate API configurations".into());
+    };
 
-    println!("{:?}", configs);
+    let measurements = try_join_all(
+        configs
+            .into_iter()
+            .map(|config| create_ripe_measurement(&client, config, api_key)),
+    )
+    .await?;
 
-    //TODO: send configs
-    // Step 3 send requests and handle results
+    //TODO: output of the measurements into some format that is usable in the fetcher program
 
     Ok(())
 }

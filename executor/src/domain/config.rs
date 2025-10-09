@@ -1,14 +1,15 @@
-use serde::{Deserialize, Serialize};
-use crate::api::{definitions::Definition, probes::Probes};
+use crate::domain::definition::Definition;
+use crate::domain::probes::Probes;
+use serde::Serialize;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_time: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_time: Option<u64>,
-    pub is_oneoff: bool, //TODO
-    pub billed_to: String, //TODO: at executor
+    pub is_oneoff: bool,
+    pub billed_to: String,
     pub definitions: Vec<Definition>,
     pub probes: Vec<Probes>,
 }
