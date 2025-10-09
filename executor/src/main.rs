@@ -20,25 +20,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = input::load_config(&args.config)?;
     let client = Client::new();
 
-    //TODO: handle input for this
-    let billed_to = "thschleicher@edu.aau.at";
-    //TODO: get api key from console
-    let api_key = "Test Key";
+    let api_key = match input::prompt_api_key() {
+        Ok(api_key) => api_key,
+        Err(error) => panic!("{}", error),
+    };
 
     let probe_info = api::fetch_probe_information::fetch_all_probes(&client, &config).await?;
 
-    let Ok(configs) = transform::generate_api_configs(config, billed_to, probe_info) else {
+    let Ok(configs) = transform::generate_api_configs(config, probe_info) else {
         return Err("Could not generate API configurations".into());
     };
 
     let measurements = try_join_all(
         configs
             .into_iter()
-            .map(|config| create_ripe_measurement(&client, config, api_key)),
+            .map(|config| create_ripe_measurement(&client, config, api_key.as_str())),
     )
     .await?;
 
-    //TODO: output of the measurements into some format that is usable in the fetcher program
+    println!("{:#?}", measurements);
 
     Ok(())
 }

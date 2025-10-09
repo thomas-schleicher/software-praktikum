@@ -46,16 +46,20 @@ pub fn prompt_topology_mode() -> String {
         .default(0)
         .interact()
         .unwrap();
-    
+
     options[selected].to_string()
 }
 
 pub fn prompt_start_time() -> Option<DateTime<Utc>> {
-    prompt_optional_utc_datetime("Enter a start time in UTC (YYYY-MM-DD HH:MM), or leave blank for earliest possible")
+    prompt_optional_utc_datetime(
+        "Enter a start time in UTC (YYYY-MM-DD HH:MM), or leave blank for earliest possible",
+    )
 }
 
 pub fn prompt_end_time() -> Option<DateTime<Utc>> {
-    prompt_optional_utc_datetime("Enter an end time in UTC (YYYY-MM-DD HH:MM), or leave blank for one-off measurement")
+    prompt_optional_utc_datetime(
+        "Enter an end time in UTC (YYYY-MM-DD HH:MM), or leave blank for one-off measurement",
+    )
 }
 
 fn prompt_optional_utc_datetime(message: &str) -> Option<DateTime<Utc>> {
@@ -103,10 +107,10 @@ pub fn prompt_ping_config() -> PingConfig {
         .unwrap();
 
     PingConfigBuilder::new()
-    .packet_count(packet_count)
-    .size(size)
-    .build()
-    .expect("Failed to build PingConfig")
+        .packet_count(packet_count)
+        .size(size)
+        .build()
+        .expect("Failed to build PingConfig")
 }
 
 // support functions
@@ -118,13 +122,13 @@ fn validate_probe_id(input: &String) -> Result<(), String> {
     if input.trim().chars().all(|c| c.is_ascii_digit()) {
         return Ok(());
     }
-    return Err("Please enter a valid probe/anchor id.".to_string());
+    Err("Please enter a valid probe/anchor id.".to_string())
 }
 
 fn validate_interval(input: &String) -> Result<(), String> {
     if input.parse::<u32>().is_ok() {
-        return Ok(());
+        Ok(())
     } else {
-        return Err("Please enter a valid positive integer".to_string());
+        Err("Please enter a valid positive integer".to_string())
     }
 }

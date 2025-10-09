@@ -9,7 +9,6 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_time: Option<u64>,
     pub is_oneoff: bool,
-    pub billed_to: String,
     pub definitions: Vec<Definition>,
     pub probes: Vec<Probes>,
 }

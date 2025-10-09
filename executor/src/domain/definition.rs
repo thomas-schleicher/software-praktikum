@@ -15,6 +15,7 @@ pub struct PingDefinition {
     #[serde(rename = "type")]
     pub definition_type: String,
     pub af: u8,
+    pub description: String,
     pub resolve_on_probe: bool,
     pub packets: u32,
     pub size: u32,
@@ -33,6 +34,7 @@ pub struct HttpDefinition {
     #[serde(rename = "type")]
     pub definition_type: String,
     pub af: u8,
+    pub description: String,
     pub resolve_on_probe: bool,
     pub path: String,
     pub header_bytes: u32,
@@ -77,6 +79,7 @@ impl PingDefinition {
         Self {
             definition_type: String::from("ping"),
             af: 4,
+            description: String::new(),
             resolve_on_probe: true,
             packets: 3,
             size: 48,
@@ -90,6 +93,11 @@ impl PingDefinition {
 
     pub fn af(mut self, af: u8) -> Self {
         self.af = af;
+        self
+    }
+
+    pub fn description(mut self, description: &str) -> Self {
+        self.description = description.to_string();
         self
     }
 
@@ -134,6 +142,7 @@ impl HttpDefinition {
         Self {
             definition_type: String::from("http"),
             af: 4,
+            description: String::new(),
             resolve_on_probe: false,
             path: String::new(),
             header_bytes: 0,
@@ -151,6 +160,11 @@ impl HttpDefinition {
 
     pub fn af(mut self, af: u8) -> Self {
         self.af = af;
+        self
+    }
+
+    pub fn description(mut self, description: &str) -> Self {
+        self.description = description.to_string();
         self
     }
 

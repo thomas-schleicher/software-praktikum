@@ -4,6 +4,7 @@ use crate::domain::definition::{DefinitionTemplate, HttpDefinition, PingDefiniti
 use crate::domain::probes::Probes;
 use common::configuration::configuration::Configuration;
 use common::configuration::topology::Topology;
+use uuid::Uuid;
 #[derive(Debug)]
 struct TargetWithSources {
     pub target: String,
@@ -12,20 +13,20 @@ struct TargetWithSources {
 
 pub fn generate_api_configs(
     measurement_configuration: Configuration,
-    billed_to: &str,
     probe_information: Vec<ProbeInformation>,
 ) -> Result<Vec<Config>, &'static str> {
     let definitions_templates =
         match create_definition_templates_from_configuration(&measurement_configuration) {
             Ok(definitions) => definitions,
-            Err(e) => return Err(e), //TODO: consider wrapping the error here
+            Err(e) => return Err(e),
         };
 
-    let Ok(connections) = generate_connections_from_configuration(
+    let connections = match generate_connections_from_configuration(
         probe_information,
         measurement_configuration.topology,
-    ) else {
-        return Err(""); //TODO: come up with better error message
+    ) {
+        Ok(connections) => connections,
+        Err(e) => return Err(e),
     };
 
     let configs = create_api_configs(
@@ -35,7 +36,6 @@ pub fn generate_api_configs(
         measurement_configuration
             .end_time
             .map(|time| time.timestamp() as u64),
-        billed_to,
         connections,
         definitions_templates,
     );
@@ -47,9 +47,11 @@ fn create_definition_templates_from_configuration(
     config: &Configuration,
 ) -> Result<Vec<DefinitionTemplate>, &'static str> {
     let mut templates: Vec<DefinitionTemplate> = Vec::new();
+    let uuid = Uuid::new_v4().to_string();
 
     if let Some(ping_config) = &config.ping_configuration {
         let ping_template = PingDefinition::template()
+            .description(uuid.as_str())
             .packets(ping_config.packet_count)
             .size(ping_config.size)
             .interval(config.interval);
@@ -57,8 +59,9 @@ fn create_definition_templates_from_configuration(
     }
 
     if let Some(http_config) = &config.http_configuration {
-        let https_template = HttpDefinition::template();
+        let https_template = HttpDefinition::template().description(uuid.as_str());
         //TODO: add config parameters for http measurements
+        //TODO: check that all endpoints of http measurements are anchors
         templates.push(DefinitionTemplate::Http(https_template));
     }
 
@@ -106,11 +109,11 @@ fn build_all_to_all_connections(probes: &Vec<ProbeInformation>) -> Vec<TargetWit
             .iter()
             .enumerate()
             .filter(|(j, _)| j > &i)
-            .map(|(_, probe)| probe.address_v4.clone())
+            .map(|(_, probe)| probe.probe_id.to_string())
             .collect();
 
         configurations.push(TargetWithSources {
-            target: target_probe.probe_id.to_string(),
+            target: target_probe.address_v4.to_string(),
             sources,
         })
     }
@@ -141,7 +144,6 @@ fn build_all_to_all_connections(probes: &Vec<ProbeInformation>) -> Vec<TargetWit
 fn create_api_configs(
     start_time: Option<u64>,
     end_time: Option<u64>,
-    billed_to: &str,
     connections: Vec<TargetWithSources>,
     definition_templates: Vec<DefinitionTemplate>,
 ) -> Vec<Config> {
@@ -165,7 +167,6 @@ fn create_api_configs(
                 start_time,
                 end_time,
                 is_oneoff: end_time.is_none(), //expect end time none if oneoff measurement
-                billed_to: billed_to.to_string(),
                 probes,
                 definitions,
             }
