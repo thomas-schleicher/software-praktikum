@@ -4,6 +4,7 @@ use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ProbeInformation {
     #[serde(skip)]

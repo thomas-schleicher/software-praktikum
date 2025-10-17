@@ -74,6 +74,7 @@ impl DefinitionTemplate {
     }
 }
 
+#[allow(dead_code)]
 impl PingDefinition {
     pub fn template() -> Self {
         Self {
@@ -137,6 +138,7 @@ impl PingDefinition {
     }
 }
 
+#[allow(dead_code)]
 impl HttpDefinition {
     pub fn template() -> Self {
         Self {

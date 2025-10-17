@@ -3,6 +3,7 @@ use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Measurement {
     measurements: Vec<u64>,
