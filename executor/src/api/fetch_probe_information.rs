@@ -73,7 +73,7 @@ async fn fetch_probe_information(
     let url = format!("https://atlas.ripe.net/api/v2/probes/{}/", probe_id);
 
     let res = client
-        .get(&url)
+        .get(url)
         .send()
         .await
         .map_err(|err| FetchProbeInformationError::Network(err))?; //maybe handle this differently
