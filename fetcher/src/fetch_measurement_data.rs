@@ -2,23 +2,26 @@ use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
-pub struct MeasurementData {
+pub struct AggregatedMeasurement {
     pub dst_addr: String,
     pub src_addr: String,
     pub proto: String,
-    pub result: Vec<MeasurementResult>,
+    pub result: Vec<RawMeasurement>,
     pub rcvd: u32,
     pub sent: u32,
     pub min: f32,
     pub max: f32,
     pub avg: f32,
-    pub msm_id: String,
+    pub msm_id: u32,
     pub timestamp: usize,
+    pub prb_id: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
-pub struct MeasurementResult {
+pub struct RawMeasurement {
     pub rtt: f32,
 }
 
@@ -35,9 +38,8 @@ pub enum FetchMeasurementDataError {
 }
 pub async fn get_measurement_data(
     client: &Client,
-    api_key: &str,
     measurement_id: &str,
-) -> Result<MeasurementData, FetchMeasurementDataError> {
+) -> Result<Vec<AggregatedMeasurement>, FetchMeasurementDataError> {
     let url = format!(
         "https://atlas.ripe.net/api/v2/measurements/{}/results/",
         measurement_id
@@ -45,7 +47,6 @@ pub async fn get_measurement_data(
 
     let response = client
         .get(url)
-        .header("Authorization", format!("Key {}", api_key))
         .send()
         .await
         .map_err(|err| FetchMeasurementDataError::Network(err))?;

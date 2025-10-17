@@ -39,6 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     println!("{:#?}", measurements);
+    //TODO: make measurements into measurement_ids struct and save to file
 
     Ok(())
 }
