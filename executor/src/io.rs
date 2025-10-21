@@ -1,6 +1,6 @@
-use common::configuration::configuration::Configuration;
+use common::{configuration::configuration::Configuration, measurement_ids::MeasurementIds};
 use dialoguer::Password;
-use std::fs;
+use std::{error::Error, fs};
 
 pub fn load_config(path: &str) -> Result<Configuration, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
@@ -33,4 +33,13 @@ pub fn prompt_api_key() -> Result<String, &'static str> {
         .map_err(|_| "Invalid Ripe Atlas API key")?;
 
     Ok(api_key.trim().to_string())
+}
+
+pub fn save_measurement_ids_to_file(
+    file_path: &str,
+    measurement_ids: &MeasurementIds,
+) -> Result<(), Box<dyn Error>> {
+    let content = toml::to_string(measurement_ids)?;
+    fs::write(file_path, content)?;
+    Ok(())
 }

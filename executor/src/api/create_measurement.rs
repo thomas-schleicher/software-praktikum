@@ -6,7 +6,7 @@ use thiserror::Error;
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Measurement {
-    measurements: Vec<u64>,
+    pub measurements: Vec<u64>,
 }
 
 #[derive(Debug, Error)]

@@ -1,11 +1,12 @@
 use crate::api::create_measurement::create_ripe_measurement;
 use clap::Parser;
+use common::measurement_ids::MeasurementIds;
 use futures::future::try_join_all;
 use reqwest::Client;
 
 mod api;
 mod domain;
-mod input;
+mod io;
 mod transform;
 
 #[derive(Parser, Debug)]
@@ -17,10 +18,10 @@ struct Cli {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
-    let config = input::load_config(&args.config)?;
+    let config = io::load_config(&args.config)?;
     let client = Client::new();
 
-    let api_key = match input::prompt_api_key() {
+    let api_key = match io::prompt_api_key() {
         Ok(api_key) => api_key,
         Err(error) => panic!("{}", error),
     };
@@ -38,8 +39,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
-    println!("{:#?}", measurements);
-    //TODO: make measurements into measurement_ids struct and save to file
+    let measurement_ids: MeasurementIds = MeasurementIds {
+        ids: measurements
+            .iter()
+            .filter_map(|m| m.measurements.first().map(|id| id.to_string()))
+            .collect::<Vec<String>>(),
+    };
+
+    match io::save_measurement_ids_to_file("measurement_ids.toml", &measurement_ids) {
+        Ok(_) => println!("Measurement IDs saved successfully"),
+        Err(error) => eprintln!("Failed to save measurement IDs: {}", error),
+    }
 
     Ok(())
 }
