@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::configuration::{http::HttpConfig, ping::PingConfig, probes::Probes, topology::Topology};
+use crate::configuration::{
+    http::HttpConfig, ping::PingConfig, probes::Probes, topology::Topology,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Configuration {

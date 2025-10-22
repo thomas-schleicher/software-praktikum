@@ -48,13 +48,13 @@ impl HttpConfigBuilder {
         self
     }
 
-    pub fn build(self) -> Result<HttpConfig, &'static str> {
-        Ok(HttpConfig {
+    pub fn build(self) -> HttpConfig {
+        HttpConfig {
             path: self.path,
             header_bytes: self.header_bytes,
             port: self.port,
             version: self.version,
             method: self.method,
-        })
+        }
     }
 }

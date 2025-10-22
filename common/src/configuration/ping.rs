@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PingConfig {
@@ -27,10 +27,10 @@ impl PingConfigBuilder {
         self
     }
 
-    pub fn build(self) -> Result<PingConfig, &'static str> {
-        Ok(PingConfig {
+    pub fn build(self) -> PingConfig {
+        PingConfig {
             packet_count: self.packet_count,
             size: self.size,
-        })
+        }
     }
 }

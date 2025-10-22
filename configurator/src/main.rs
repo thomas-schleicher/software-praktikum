@@ -1,48 +1,96 @@
+use common::configuration::configuration::{ConfigBuilder, Configuration};
+use common::configuration::probes::Probes;
 use std::fs;
-
-use common::configuration::{
-    configuration::{ConfigBuilder, Configuration},
-    probes::Probes,
-};
-
-use crate::prompt::prompt_interval;
 
 mod prompt;
 
 fn main() {
     let mut builder = ConfigBuilder::new();
 
-    // Prompts for general configuration
-    let start_time = prompt::prompt_start_time();
-    if let Some(start) = start_time {
-        builder = builder.start_time(start);
+    let measurement_types = match prompt::general::prompt_measurement_types() {
+        Ok(types) => types,
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            std::process::exit(1);
+        }
+    };
+
+    if let Some(start_time) = prompt::general::prompt_start_time() {
+        builder = builder.start_time(start_time);
     }
 
-    let end_time = prompt::prompt_end_time();
-    if let Some(end) = end_time {
-        builder = builder.end_time(end);
-    }
+    if let Some(end_time) = prompt::general::prompt_end_time() {
+        builder = builder.end_time(end_time);
 
-    if let Some(interval) = end_time.map(|_| prompt_interval()) {
-        builder = builder.interval(interval);
+        match prompt::general::prompt_interval() {
+            Ok(interval) => builder = builder.interval(interval),
+            Err(err) => {
+                eprintln!("Error: {}", err);
+                std::process::exit(1);
+            }
+        }
     }
 
     // Prompts for measurement specifics
-    let measurement_types = prompt::prompt_measurement_types();
 
-    if measurement_types.iter().any(|s| s == "ping") {
-        builder = builder.ping_configuration(prompt::prompt_ping_config());
+    for measurement_type in measurement_types {
+        match measurement_type.as_str() {
+            "ping" => {
+                let ping_config = match prompt::ping::prompt_ping_config() {
+                    Ok(ping_config) => ping_config,
+                    Err(err) => {
+                        eprintln!("Error: {}", err);
+                        std::process::exit(1);
+                    }
+                };
+                builder = builder.ping_configuration(ping_config);
+            }
+            "http" => {
+                let http_config = match prompt::http::prompt_http_configuration() {
+                    Ok(http_config) => http_config,
+                    Err(err) => {
+                        eprintln!("Error: {}", err);
+                        std::process::exit(1);
+                    }
+                };
+                builder = builder.http_configuration(http_config);
+            }
+            _ => {
+                eprintln!("Unknown measurement type: {}", measurement_type);
+                std::process::exit(1);
+            }
+        }
     }
 
-    //TODO: http config probe
+    // Topology
 
-    let topology_mode = prompt::prompt_topology_mode();
-    builder = builder.mode(topology_mode);
-
-    let probes = Probes::new(prompt::prompt_probe_ids());
-    builder = builder.probes(probes);
-
-    //TODO: probe for pairs if topology = custom
+    match prompt::topology::prompt_topology_mode() {
+        Ok(topology_mode) => {
+            match topology_mode.as_str() {
+                "all-to-all" => match prompt::probe::prompt_probe_ids() {
+                    Ok(probe_ids) => {
+                        builder = builder.probes(Probes::new(probe_ids));
+                    }
+                    Err(err) => {
+                        eprintln!("Error: {}", err);
+                        std::process::exit(1);
+                    }
+                },
+                "custom" => {
+                    todo!("Implement Custom Pairs");
+                }
+                _ => {
+                    eprintln!("Unknown topology mode: {}", topology_mode);
+                    std::process::exit(1);
+                }
+            }
+            builder = builder.mode(topology_mode);
+        }
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            std::process::exit(1);
+        }
+    };
 
     let config = builder.build().unwrap();
     save_config_to_file(&config, "config.toml").expect("Failed to write config");
