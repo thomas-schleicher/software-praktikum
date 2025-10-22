@@ -59,9 +59,13 @@ fn create_definition_templates_from_configuration(
     }
 
     if let Some(http_config) = &config.http_configuration {
-        let https_template = HttpDefinition::template().description(uuid.as_str());
-        //TODO: add config parameters for http measurements
-        //TODO: check that all endpoints of http measurements are anchors
+        let https_template = HttpDefinition::template()
+            .description(uuid.as_str())
+            .method(http_config.method.clone())
+            .path(http_config.path.clone())
+            .port(http_config.port)
+            .header_bytes(http_config.header_bytes)
+            .version(http_config.version);
         templates.push(DefinitionTemplate::Http(https_template));
     }
 
@@ -119,26 +123,6 @@ fn build_all_to_all_connections(probes: &Vec<ProbeInformation>) -> Vec<TargetWit
     }
 
     configurations
-
-    // OLD IMPL IN CASE THE NEW ONE FAILS //TODO: REMOVE IF DONE
-    // let mut configurations = Vec::new();
-    //
-    // while let Some(target_probe) = probes.pop() {
-    //     if probes.is_empty() {
-    //         break;
-    //     }
-    //     let sources: Vec<String> = probes
-    //         .iter()
-    //         .map(|probe| probe.probe_id.to_string())
-    //         .collect();
-    //
-    //     configurations.push(TargetWithSources {
-    //         target: target_probe.probe_id.to_string(),
-    //         sources,
-    //     });
-    // }
-    //
-    // Ok(configurations)
 }
 
 fn create_api_configs(

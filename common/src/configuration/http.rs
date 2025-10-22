@@ -1,9 +1,9 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HttpConfig {
     pub path: String,
-    pub header_bytes: String,
+    pub header_bytes: u32,
     pub port: u16,
     pub version: f32,
     pub method: String,
@@ -12,7 +12,7 @@ pub struct HttpConfig {
 #[derive(Debug, Default)]
 pub struct HttpConfigBuilder {
     path: String,
-    header_bytes: String,
+    header_bytes: u32,
     port: u16,
     version: f32,
     method: String,
@@ -28,8 +28,8 @@ impl HttpConfigBuilder {
         self
     }
 
-    pub fn header_bytes(mut self, val: impl Into<String>) -> Self {
-        self.header_bytes = val.into();
+    pub fn header_bytes(mut self, val: u32) -> Self {
+        self.header_bytes = val;
         self
     }
 

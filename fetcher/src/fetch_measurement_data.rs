@@ -19,6 +19,8 @@ pub struct AggregatedMeasurement {
     pub prb_id: u32,
 }
 
+//TODO: check if other measurements (http) follow this structure
+
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct RawMeasurement {

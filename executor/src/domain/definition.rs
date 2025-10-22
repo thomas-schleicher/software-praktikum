@@ -40,7 +40,7 @@ pub struct HttpDefinition {
     pub header_bytes: u32,
     pub method: String,
     pub extended_timing: bool,
-    pub port: u32,
+    pub port: u16,
     pub version: f32,
     pub more_extended_timing: bool,
     pub skip_dns_check: bool,
@@ -195,7 +195,7 @@ impl HttpDefinition {
         self
     }
 
-    pub fn port(mut self, port: u32) -> Self {
+    pub fn port(mut self, port: u16) -> Self {
         self.port = port;
         self
     }

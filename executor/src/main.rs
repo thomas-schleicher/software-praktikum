@@ -1,3 +1,5 @@
+use std::panic;
+
 use crate::api::create_measurement::create_ripe_measurement;
 use clap::Parser;
 use common::measurement_ids::MeasurementIds;
@@ -27,6 +29,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let probe_info = api::fetch_probe_information::fetch_all_probes(&client, &config).await?;
+
+    if config.http_configuration.is_some() {
+        if let Some(probe) = probe_info.iter().find(|probe| !probe.is_anchor) {
+            panic!(
+                "Probe {} is not an Anchor (required for HTTP measurements",
+                probe.probe_id
+            );
+        }
+    }
 
     let Ok(configs) = transform::generate_api_configs(config, probe_info) else {
         return Err("Could not generate API configurations".into());
