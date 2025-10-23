@@ -1,3 +1,4 @@
+use csv::Writer;
 use std::{error::Error, fs};
 
 use common::measurement_ids::MeasurementIds;
@@ -25,10 +26,14 @@ impl CsvSaver {
 
 impl MeasurementSaver for CsvSaver {
     fn save(&self, measurements: &Vec<AggregatedMeasurement>) -> Result<(), Box<dyn Error>> {
-        let mut file = fs::File::create("measurements.csv")?;
+        let file = fs::File::create("measurements.csv")?;
+        let mut writer = Writer::from_writer(file);
+
         for measurement in measurements {
-            //TODO: Implement CSV saving logic here
+            writer.serialize(measurement)?;
         }
+
+        writer.flush()?;
         Ok(())
     }
 }

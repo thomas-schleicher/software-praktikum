@@ -1,9 +1,9 @@
 use reqwest::{Client, StatusCode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AggregatedMeasurement {
     pub dst_addr: String,
     pub src_addr: String,
@@ -22,7 +22,7 @@ pub struct AggregatedMeasurement {
 //TODO: check if other measurements (http) follow this structure
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RawMeasurement {
     pub rtt: f32,
 }
