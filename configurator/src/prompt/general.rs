@@ -1,16 +1,37 @@
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use dialoguer::{Input, MultiSelect};
-use std::error::Error;
+use std::{error::Error, fmt::Display};
 
-pub fn prompt_measurement_types() -> Result<Vec<String>, Box<dyn Error>> {
-    let options = vec!["ping", "http"];
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MeasurementType {
+    Ping,
+    Http,
+}
+
+impl Display for MeasurementType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MeasurementType::Ping => write!(f, "Ping"),
+            MeasurementType::Http => write!(f, "HTTP"),
+        }
+    }
+}
+
+impl MeasurementType {
+    pub fn all() -> &'static [MeasurementType] {
+        &[MeasurementType::Ping, MeasurementType::Http]
+    }
+}
+
+pub fn prompt_measurement_types() -> Result<Vec<MeasurementType>, Box<dyn Error>> {
+    let options = MeasurementType::all();
     let selected = MultiSelect::new()
         .with_prompt("Select type of measurement")
-        .items(&options)
+        .items(options)
         .interact()
         .map_err(|e| format!("Failed to select measurement type: {e}"))?;
 
-    Ok(selected.iter().map(|&i| options[i].to_string()).collect())
+    Ok(selected.iter().map(|&i| options[i]).collect())
 }
 
 pub fn prompt_interval() -> Result<u32, Box<dyn Error>> {

@@ -1,37 +1,47 @@
+use common::configuration::{anchors::Anchors, probes::Probes};
 use dialoguer::Input;
 use std::error::Error;
 
-pub fn prompt_probe_ids() -> Result<Vec<String>, Box<dyn Error>> {
-    let mut probes = Vec::new();
+fn prompt_ids(prompt: &str) -> Result<Vec<u32>, Box<dyn Error>> {
+    let mut ids = Vec::new();
 
     loop {
-        let id: String = Input::new()
-            .with_prompt("Enter a probe ID (or leave blank to finish)")
+        let input: String = Input::new()
+            .with_prompt(prompt)
             .allow_empty(true)
-            .validate_with(validate_probe_id)
-            .interact_text()
-            .map_err(|e| format!("Failed to read probe ID: {}", e))?;
+            .interact_text()?;
 
-        if id.trim().is_empty() {
+        if input.trim().is_empty() {
             break;
         }
 
-        if probes.contains(&id) {
-            println!("Probe ID is already entered. Skipping.");
+        let id: u32 = match input.trim().parse() {
+            Ok(num) => num,
+            Err(_) => {
+                println!("Invalid ID, please enter a valid number.");
+                continue;
+            }
+        };
+
+        if ids.contains(&id) {
+            println!("ID already entered. Skipping.");
             continue;
         }
 
-        probes.push(id);
+        ids.push(id);
     }
-    Ok(probes)
+
+    Ok(ids)
 }
 
-fn validate_probe_id(input: &String) -> Result<(), &'static str> {
-    if input.trim().is_empty() {
-        return Ok(());
-    }
-    if input.trim().chars().all(|c| c.is_ascii_digit()) {
-        return Ok(());
-    }
-    Err("Please enter a valid probe/anchor id.")
+pub fn prompt_anchors() -> Result<Anchors, Box<dyn Error>> {
+    let anchor_ids = prompt_ids("Enter a anchor ID (or leave blank to finish)")?;
+    let anchors = Anchors::new(anchor_ids);
+    Ok(anchors)
+}
+
+pub fn prompt_probes() -> Result<Probes, Box<dyn Error>> {
+    let probe_ids = prompt_ids("Enter a probe ID (or leave blank to finish)")?;
+    let probes = Probes::new(probe_ids);
+    Ok(probes)
 }

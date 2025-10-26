@@ -1,12 +1,12 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Probes {
-    pub probes: Vec<String>,
+    pub probes: Vec<u32>,
 }
 
 impl Probes {
-    pub fn new(probes: Vec<String>) -> Self {
+    pub fn new(probes: Vec<u32>) -> Self {
         Probes { probes: probes }
     }
 }

@@ -1,6 +1,7 @@
 use common::configuration::configuration::{ConfigBuilder, Configuration};
-use common::configuration::probes::Probes;
-use std::fs;
+use std::{error::Error, fs};
+
+use crate::prompt::{general::MeasurementType, topology::TopologyMode};
 
 mod prompt;
 
@@ -33,9 +34,9 @@ fn main() {
 
     // Prompts for measurement specifics
 
-    for measurement_type in measurement_types {
-        match measurement_type.as_str() {
-            "ping" => {
+    for measurement_type in &measurement_types {
+        match measurement_type {
+            MeasurementType::Ping => {
                 let ping_config = match prompt::ping::prompt_ping_config() {
                     Ok(ping_config) => ping_config,
                     Err(err) => {
@@ -45,7 +46,7 @@ fn main() {
                 };
                 builder = builder.ping_configuration(ping_config);
             }
-            "http" => {
+            MeasurementType::Http => {
                 let http_config = match prompt::http::prompt_http_configuration() {
                     Ok(http_config) => http_config,
                     Err(err) => {
@@ -55,37 +56,24 @@ fn main() {
                 };
                 builder = builder.http_configuration(http_config);
             }
-            _ => {
-                eprintln!("Unknown measurement type: {}", measurement_type);
-                std::process::exit(1);
-            }
         }
     }
 
     // Topology
 
-    match prompt::topology::prompt_topology_mode() {
+    let topology_mode = match prompt::topology::prompt_topology_mode() {
         Ok(topology_mode) => {
-            match topology_mode.as_str() {
-                "all-to-all" => match prompt::probe::prompt_probe_ids() {
-                    Ok(probe_ids) => {
-                        builder = builder.probes(Probes::new(probe_ids));
-                    }
-                    Err(err) => {
-                        eprintln!("Error: {}", err);
-                        std::process::exit(1);
-                    }
-                },
-                "custom" => {
-                    todo!("Implement Custom Pairs");
-                }
-                _ => {
-                    eprintln!("Unknown topology mode: {}", topology_mode);
-                    std::process::exit(1);
-                }
-            }
-            builder = builder.mode(topology_mode);
+            builder = builder.mode(topology_mode.as_str());
+            topology_mode
         }
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            std::process::exit(1);
+        }
+    };
+
+    builder = match apply_appropriete_ids_for(builder, topology_mode, &measurement_types) {
+        Ok(builder) => builder,
         Err(err) => {
             eprintln!("Error: {}", err);
             std::process::exit(1);
@@ -94,6 +82,24 @@ fn main() {
 
     let config = builder.build().unwrap();
     save_config_to_file(&config, "config.toml").expect("Failed to write config");
+}
+
+fn apply_appropriete_ids_for(
+    builder: ConfigBuilder,
+    topology: TopologyMode,
+    measurement_types: &[MeasurementType],
+) -> Result<ConfigBuilder, Box<dyn Error>> {
+    let use_anchor: bool = measurement_types.contains(&MeasurementType::Http);
+
+    let builder = match (topology, use_anchor) {
+        (TopologyMode::AllToAll, false) => builder.probes(prompt::probe::prompt_probes()?),
+        (TopologyMode::AllToAll, true) => builder.anchors(prompt::probe::prompt_anchors()?),
+        (TopologyMode::CustomPairs, _) => {
+            todo!("Implement Custom Pairs");
+        }
+    };
+
+    Ok(builder)
 }
 
 fn save_config_to_file(config: &Configuration, path: &str) -> std::io::Result<()> {

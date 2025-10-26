@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::configuration::{
-    http::HttpConfig, ping::PingConfig, probes::Probes, topology::Topology,
+    anchors::Anchors, http::HttpConfig, ping::PingConfig, probes::Probes, topology::Topology,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -15,7 +15,8 @@ pub struct Configuration {
     pub ping_configuration: Option<PingConfig>,
     #[serde(rename = "http")]
     pub http_configuration: Option<HttpConfig>,
-    pub probes: Option<Probes>, //TODO: think about if I dont want to have this as optional
+    pub probes: Option<Probes>,
+    pub anchors: Option<Anchors>,
     pub topology: Option<Topology>,
 }
 
@@ -28,6 +29,7 @@ pub struct ConfigBuilder {
     ping_configuration: Option<PingConfig>,
     http_configuration: Option<HttpConfig>,
     probes: Option<Probes>,
+    anchors: Option<Anchors>,
     topology: Option<Topology>,
 }
 
@@ -71,6 +73,11 @@ impl ConfigBuilder {
         self
     }
 
+    pub fn anchors(mut self, val: impl Into<Anchors>) -> Self {
+        self.anchors = Some(val.into());
+        self
+    }
+
     pub fn topology(mut self, val: impl Into<Topology>) -> Self {
         self.topology = Some(val.into());
         self
@@ -85,6 +92,7 @@ impl ConfigBuilder {
             ping_configuration: self.ping_configuration,
             http_configuration: self.http_configuration,
             probes: self.probes,
+            anchors: self.anchors,
             topology: self.topology,
         })
     }
