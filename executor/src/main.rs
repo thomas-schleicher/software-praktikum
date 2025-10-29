@@ -1,10 +1,8 @@
-use std::panic;
-
-use crate::api::create_measurement::create_ripe_measurement;
 use clap::Parser;
 use common::measurement_ids::MeasurementIds;
 use futures::future::try_join_all;
 use reqwest::Client;
+use std::panic;
 
 mod api;
 mod domain;
@@ -30,26 +28,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let probe_info = api::fetch_probe_information::fetch_information(&client, &config).await?;
 
-    if config.http_configuration.is_some() {
-        if let Some(probe) = probe_info.iter().find(|probe| !probe.is_anchor) {
-            panic!(
-                "Probe {} is not an Anchor (required for HTTP measurements",
-                probe.probe_id
-            );
-        }
-    }
-
-    //TODO: UPDATE THE TRANSFORM CODE TO HANDLE THE ANCHORS CORRECTLY
-
-    let Ok(configs) = transform::generate_api_configs(config, probe_info) else {
-        return Err("Could not generate API configurations".into());
+    let configs = match transform::builder::generate_api_configs(config, probe_info) {
+        Ok(configs) => configs,
+        Err(error) => panic!("{}", error),
     };
 
-    let measurements = try_join_all(
-        configs
-            .into_iter()
-            .map(|config| create_ripe_measurement(&client, config, api_key.as_str())),
-    )
+    let measurements = try_join_all(configs.into_iter().map(|config| {
+        api::create_measurement::create_ripe_measurement(&client, config, api_key.as_str())
+    }))
     .await?;
 
     let measurement_ids: MeasurementIds = MeasurementIds {

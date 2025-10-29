@@ -145,7 +145,7 @@ impl HttpDefinition {
             definition_type: String::from("http"),
             af: 4,
             description: String::new(),
-            resolve_on_probe: false,
+            resolve_on_probe: true,
             path: String::new(),
             header_bytes: 0,
             method: String::from("GET"),

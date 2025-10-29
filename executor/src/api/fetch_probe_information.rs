@@ -2,37 +2,64 @@ use common::configuration::configuration::Configuration;
 use futures::future::try_join_all;
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
+use serde_json::Value;
 use thiserror::Error;
 
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct ProbeInformation {
-    #[serde(alias = "id", alias = "probe")]
     pub probe_id: u32,
-    #[serde(alias = "ip_v4")]
     pub address_v4: String,
-    #[serde(alias = "country")]
     pub country_code: String,
-    #[serde(default, deserialize_with = "deserialize_is_anchor")]
     pub is_anchor: bool,
     pub fqdn: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum BoolOrString {
-    Bool(bool),
-    String(String),
-}
+impl<'de> Deserialize<'de> for ProbeInformation {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
 
-fn deserialize_is_anchor<'de, D>(deserializer: D) -> Result<bool, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let val = BoolOrString::deserialize(deserializer)?;
-    match val {
-        BoolOrString::Bool(b) => Ok(b),
-        BoolOrString::String(s) => Ok(s.eq_ignore_ascii_case("anchor")),
+        let probe_id = value
+            .get("probe")
+            .or_else(|| value.get("id"))
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| serde::de::Error::missing_field("id or probe"))?
+            as u32;
+
+        let address_v4 = value
+            .get("ip_v4")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .into();
+
+        let country_code = value
+            .get("country")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .into();
+
+        let is_anchor = value
+            .get("is_anchor")
+            .and_then(|v| v.as_bool())
+            .or_else(|| {
+                value
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.eq_ignore_ascii_case("anchor"))
+            })
+            .unwrap_or(false);
+
+        let fqdn = value.get("fqdn").and_then(|v| v.as_str()).map(String::from);
+
+        Ok(Self {
+            probe_id,
+            address_v4,
+            country_code,
+            is_anchor,
+            fqdn,
+        })
     }
 }
 
