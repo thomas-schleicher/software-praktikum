@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(error) => panic!("{}", error),
     };
 
-    let probe_info = api::fetch_probe_information::fetch_all_probes(&client, &config).await?;
+    let probe_info = api::fetch_probe_information::fetch_information(&client, &config).await?;
 
     if config.http_configuration.is_some() {
         if let Some(probe) = probe_info.iter().find(|probe| !probe.is_anchor) {
@@ -38,6 +38,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
     }
+
+    //TODO: UPDATE THE TRANSFORM CODE TO HANDLE THE ANCHORS CORRECTLY
 
     let Ok(configs) = transform::generate_api_configs(config, probe_info) else {
         return Err("Could not generate API configurations".into());

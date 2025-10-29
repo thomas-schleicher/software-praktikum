@@ -7,21 +7,33 @@ use thiserror::Error;
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ProbeInformation {
-    #[serde(skip)]
+    #[serde(alias = "id", alias = "probe")]
     pub probe_id: u32,
+    #[serde(alias = "ip_v4")]
     pub address_v4: String,
-    // pub country_code: String,
+    #[serde(alias = "country")]
+    pub country_code: String,
+    #[serde(default, deserialize_with = "deserialize_is_anchor")]
     pub is_anchor: bool,
-    pub status: ProbeStatus,
+    pub fqdn: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ProbeStatus {
-    pub id: u32,
+#[serde(untagged)]
+enum BoolOrString {
+    Bool(bool),
+    String(String),
 }
 
-enum ProbeStatusCode {
-    Connected = 1,
+fn deserialize_is_anchor<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let val = BoolOrString::deserialize(deserializer)?;
+    match val {
+        BoolOrString::Bool(b) => Ok(b),
+        BoolOrString::String(s) => Ok(s.eq_ignore_ascii_case("anchor")),
+    }
 }
 
 #[derive(Debug, Error)]
@@ -32,9 +44,6 @@ pub enum FetchProbeInformationError {
     #[error("RIPE Atlas API returned an error: {status} - {body}")]
     API { status: StatusCode, body: String },
 
-    #[error("Probe {probe_id} is offline")]
-    Offline { probe_id: u32 },
-
     #[error("Failed to parse expected JSON response body: {0}")]
     ResponseFormat(#[from] serde_json::Error),
 
@@ -42,67 +51,62 @@ pub enum FetchProbeInformationError {
     ConfigurationError(String),
 }
 
-pub async fn fetch_all_probes(
+pub async fn fetch_information(
     client: &Client,
     config: &Configuration,
 ) -> Result<Vec<ProbeInformation>, FetchProbeInformationError> {
-    let Some(probe_config) = &config.probes else {
-        return Err(FetchProbeInformationError::ConfigurationError(
-            "No probes are not defined in the provided configuration.".to_string(),
-        ));
-    };
+    match (&config.anchors, &config.probes) {
+        (Some(_), Some(_)) => Err(FetchProbeInformationError::ConfigurationError(
+            "Configuration contains both anchors and probes.".to_string(),
+        )),
+        (None, None) => Err(FetchProbeInformationError::ConfigurationError(
+            "No anchors or probes are defined in the provided configuration.".to_string(),
+        )),
+        (Some(anchor_config), None) => {
+            let futures = anchor_config
+                .anchors
+                .iter()
+                .map(|anchor_id| fetch_single(client, *anchor_id, "anchors"));
 
-    if probe_config.probes.is_empty() {
-        return Err(FetchProbeInformationError::ConfigurationError(
-            "Probe list in configuration is empty.".to_string(),
-        ));
+            let anchors = try_join_all(futures).await?;
+            Ok(anchors)
+        }
+        (None, Some(probe_config)) => {
+            let futures = probe_config
+                .probes
+                .iter()
+                .map(|probe_id| fetch_single(client, *probe_id, "probes"));
+
+            let probes = try_join_all(futures).await?;
+            Ok(probes)
+        }
     }
-
-    let futures = probe_config
-        .probes
-        .iter()
-        .map(|probe_id| fetch_probe_information(client, probe_id));
-
-    let probes = try_join_all(futures).await?;
-    Ok(probes)
 }
 
-async fn fetch_probe_information(
+async fn fetch_single(
     client: &Client,
-    probe_id: &str,
+    id: u32,
+    endpoint: &str,
 ) -> Result<ProbeInformation, FetchProbeInformationError> {
-    let url = format!("https://atlas.ripe.net/api/v2/probes/{}/", probe_id);
-
+    let url = format!("https://atlas.ripe.net/api/v2/{endpoint}/{id}");
     let res = client
         .get(url)
         .send()
         .await
-        .map_err(|err| FetchProbeInformationError::Network(err))?; //maybe handle this differently
+        .map_err(|err| FetchProbeInformationError::Network(err))?;
 
     let status = res.status();
-    let text = res
+    let body = res
         .text()
         .await
-        .map_err(FetchProbeInformationError::Network)?;
+        .map_err(|err| FetchProbeInformationError::Network(err))?;
 
     if !status.is_success() {
-        return Err(FetchProbeInformationError::API { status, body: text });
+        return Err(FetchProbeInformationError::API { status, body });
     }
 
-    let mut probe_information: ProbeInformation =
-        serde_json::from_str(&text).map_err(FetchProbeInformationError::ResponseFormat)?;
-    probe_information.probe_id = probe_id.parse().map_err(|_| {
-        FetchProbeInformationError::ConfigurationError(format!(
-            "ProbeID {} could not be parsed correctly.",
-            probe_id
-        ))
-    })?;
-
-    if probe_information.status.id != ProbeStatusCode::Connected as u32 {
-        return Err(FetchProbeInformationError::Offline {
-            probe_id: probe_information.probe_id,
-        });
-    }
+    let probe_information: ProbeInformation =
+        serde_json::from_str(&body).map_err(FetchProbeInformationError::ResponseFormat)?;
 
     Ok(probe_information)
 }
