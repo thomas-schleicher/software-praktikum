@@ -8,7 +8,7 @@ pub struct AggregatedMeasurement {
     pub dst_addr: String,
     pub src_addr: String,
     pub proto: String,
-    pub result: Vec<RawMeasurement>,
+    // pub result: Vec<RawMeasurement>,
     pub rcvd: u32,
     pub sent: u32,
     pub min: f32,

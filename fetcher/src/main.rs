@@ -32,13 +32,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|id| fetch_measurement_data::get_measurement_data(&client, id));
     let results = join_all(futures).await;
 
+    let mut measurements: Vec<fetch_measurement_data::AggregatedMeasurement> =
+        Vec::with_capacity(results.len());
     for result in results {
         match result {
-            Ok(measurement) => println!("{:?}", measurement),
-            // Ok(measurement) => output.save(&measurement)?,
+            Ok(mut m) => measurements.append(&mut m),
             Err(error) => println!("Error: {}", error),
         }
     }
+
+    output.save(&measurements)?;
 
     Ok(())
 }
