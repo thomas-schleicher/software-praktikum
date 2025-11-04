@@ -1,13 +1,18 @@
 use csv::Writer;
-use std::{error::Error, fs};
+use std::{collections::HashMap, error::Error, fs};
 
 use common::measurement_ids::MeasurementIds;
 use toml;
 
-use crate::fetch_measurement_data::AggregatedMeasurement;
+use crate::api::results::{AggregatedMeasurement, FlattenedHttpMeasurement};
 
 pub trait MeasurementSaver {
-    fn save(&self, measurements: &Vec<AggregatedMeasurement>) -> Result<(), Box<dyn Error>>;
+    fn save_by_type(&self, measurements: &[AggregatedMeasurement]) -> Result<(), Box<dyn Error>>;
+    fn save_to(
+        &self,
+        file_name: &str,
+        measurement: &[&AggregatedMeasurement],
+    ) -> Result<(), Box<dyn Error>>;
 }
 
 pub fn read_measurement_ids_from_file(file_path: &str) -> Result<MeasurementIds, Box<dyn Error>> {
@@ -25,12 +30,38 @@ impl CsvSaver {
 }
 
 impl MeasurementSaver for CsvSaver {
-    fn save(&self, measurements: &Vec<AggregatedMeasurement>) -> Result<(), Box<dyn Error>> {
-        let file = fs::File::create("measurements.csv")?;
+    //TODO fix this saving
+    fn save_by_type(&self, measurements: &[AggregatedMeasurement]) -> Result<(), Box<dyn Error>> {
+        let mut buckets: HashMap<&str, Vec<&AggregatedMeasurement>> = HashMap::new();
+
+        for item in measurements {
+            buckets.entry(item.kind()).or_default().push(item);
+        }
+
+        for (kind, bucket) in buckets {
+            let file_name = format!("{kind}.csv");
+            self.save_to(&file_name, &bucket)?;
+        }
+
+        Ok(())
+    }
+
+    fn save_to(
+        &self,
+        file_name: &str,
+        measurements: &[&AggregatedMeasurement],
+    ) -> Result<(), Box<dyn Error>> {
+        let file = fs::File::create(file_name)?;
         let mut writer = Writer::from_writer(file);
 
-        for measurement in measurements {
-            writer.serialize(measurement)?;
+        for entry in measurements {
+            match *entry {
+                AggregatedMeasurement::Ping(p) => writer.serialize(p)?,
+                AggregatedMeasurement::Http(p) => {
+                    writer.serialize(FlattenedHttpMeasurement::from_http_measurement(p))?
+                }
+                AggregatedMeasurement::TraceRoute(t) => writer.serialize(t)?,
+            }
         }
 
         writer.flush()?;

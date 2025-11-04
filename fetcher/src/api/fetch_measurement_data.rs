@@ -1,31 +1,7 @@
 use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AggregatedMeasurement {
-    pub dst_addr: String,
-    pub src_addr: String,
-    pub proto: String,
-    // pub result: Vec<RawMeasurement>,
-    pub rcvd: u32,
-    pub sent: u32,
-    pub min: f32,
-    pub max: f32,
-    pub avg: f32,
-    pub msm_id: u32,
-    pub timestamp: usize,
-    pub prb_id: u32,
-}
-
-//TODO: check if other measurements (http) follow this structure
-
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RawMeasurement {
-    pub rtt: f32,
-}
+use crate::api::results::AggregatedMeasurement;
 
 #[derive(Debug, Error)]
 pub enum FetchMeasurementDataError {
@@ -38,6 +14,7 @@ pub enum FetchMeasurementDataError {
     #[error("Failed to parse expected JSON response body: {0}")]
     ResponseFormat(#[from] serde_json::Error),
 }
+
 pub async fn get_measurement_data(
     client: &Client,
     measurement_id: &str,

@@ -9,7 +9,7 @@ use thiserror::Error;
 pub struct ProbeInformation {
     pub probe_id: u32,
     pub address_v4: String,
-    pub country_code: String,
+    // pub country_code: String,
     pub is_anchor: bool,
     pub fqdn: Option<String>,
 }
@@ -34,11 +34,11 @@ impl<'de> Deserialize<'de> for ProbeInformation {
             .unwrap_or_default()
             .into();
 
-        let country_code = value
-            .get("country")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .into();
+        // let country_code = value
+        //     .get("country")
+        //     .and_then(|v| v.as_str())
+        //     .unwrap_or_default()
+        //     .into();
 
         let is_anchor = value
             .get("is_anchor")
@@ -56,7 +56,7 @@ impl<'de> Deserialize<'de> for ProbeInformation {
         Ok(Self {
             probe_id,
             address_v4,
-            country_code,
+            // country_code,
             is_anchor,
             fqdn,
         })

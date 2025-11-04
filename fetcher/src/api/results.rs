@@ -1,0 +1,103 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum AggregatedMeasurement {
+    #[serde(rename = "http")]
+    Http(HttpMeasurement),
+    #[serde(rename = "ping")]
+    Ping(PingMeasurement),
+    #[serde(rename = "traceroute")]
+    //TODO: create a traceroute measurement and check the type parameter in results
+    TraceRoute(TraceRouteMeasurement),
+}
+
+impl AggregatedMeasurement {
+    pub fn kind(&self) -> &str {
+        match self {
+            AggregatedMeasurement::Http(_) => "http",
+            AggregatedMeasurement::Ping(_) => "ping",
+            AggregatedMeasurement::TraceRoute(_) => "traceroute",
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PingMeasurement {
+    pub dst_addr: String,
+    pub src_addr: String,
+    pub proto: String,
+    pub rcvd: u32,
+    pub sent: u32,
+    pub min: f32,
+    pub max: f32,
+    pub avg: f32,
+    pub msm_id: u32,
+    pub timestamp: usize,
+    pub prb_id: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HttpMeasurement {
+    pub ttr: f32,
+    pub result: Vec<HttpResult>,
+    pub msm_id: u32,
+    pub timestamp: usize,
+    pub prb_id: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HttpResult {
+    pub method: String,
+    pub dst_addr: String,
+    pub src_addr: String,
+    pub rt: f32,
+    pub res: u32,
+    pub ver: String,
+    pub hsize: u32,
+    pub bsize: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FlattenedHttpMeasurement {
+    pub ttr: f32,
+    pub method: String,
+    pub dst_addr: String,
+    pub src_addr: String,
+    pub rt: f32,
+    pub res: u32,
+    pub ver: String,
+    pub hsize: u32,
+    pub bsize: u32,
+    pub msm_id: u32,
+    pub timestamp: usize,
+    pub prb_id: u32,
+}
+
+impl FlattenedHttpMeasurement {
+    pub fn from_http_measurement(measurement: &HttpMeasurement) -> Self {
+        let http_result = measurement
+            .result
+            .first()
+            .expect("Http measurement should contain exactly one result, first() is none");
+        Self {
+            ttr: measurement.ttr,
+            method: http_result.method.clone(),
+            dst_addr: http_result.dst_addr.clone(),
+            src_addr: http_result.src_addr.clone(),
+            rt: http_result.rt,
+            res: http_result.res,
+            ver: http_result.ver.clone(),
+            hsize: http_result.hsize,
+            bsize: http_result.bsize,
+            msm_id: measurement.msm_id,
+            timestamp: measurement.timestamp,
+            prb_id: measurement.prb_id,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TraceRouteMeasurement {
+    //TODO: Create traceroute measurement
+}
