@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::configuration::{
     anchors::Anchors, http::HttpConfig, ping::PingConfig, probes::Probes, topology::Topology,
+    traceroute::TracerouteConfig,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -15,6 +16,8 @@ pub struct Configuration {
     pub ping_configuration: Option<PingConfig>,
     #[serde(rename = "http")]
     pub http_configuration: Option<HttpConfig>,
+    #[serde(rename = "traceroute")]
+    pub traceroute_configuration: Option<TracerouteConfig>,
     pub probes: Option<Probes>,
     pub anchors: Option<Anchors>,
     pub topology: Option<Topology>,
@@ -28,6 +31,7 @@ pub struct ConfigBuilder {
     mode: Option<String>,
     ping_configuration: Option<PingConfig>,
     http_configuration: Option<HttpConfig>,
+    traceroute_configuration: Option<TracerouteConfig>,
     probes: Option<Probes>,
     anchors: Option<Anchors>,
     topology: Option<Topology>,
@@ -68,6 +72,11 @@ impl ConfigBuilder {
         self
     }
 
+    pub fn traceroute_configuration(mut self, val: impl Into<TracerouteConfig>) -> Self {
+        self.traceroute_configuration = Some(val.into());
+        self
+    }
+
     pub fn probes(mut self, val: impl Into<Probes>) -> Self {
         self.probes = Some(val.into());
         self
@@ -91,6 +100,7 @@ impl ConfigBuilder {
             mode: self.mode,
             ping_configuration: self.ping_configuration,
             http_configuration: self.http_configuration,
+            traceroute_configuration: self.traceroute_configuration,
             probes: self.probes,
             anchors: self.anchors,
             topology: self.topology,

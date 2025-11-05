@@ -56,6 +56,16 @@ fn main() {
                 };
                 builder = builder.http_configuration(http_config);
             }
+            MeasurementType::Traceroute => {
+                let traceroute_config = match prompt::traceroute::prompt_traceroute_config() {
+                    Ok(traceroute_config) => traceroute_config,
+                    Err(err) => {
+                        eprintln!("Error: {}", err);
+                        std::process::exit(1);
+                    }
+                };
+                builder = builder.traceroute_configuration(traceroute_config);
+            }
         }
     }
 

@@ -6,6 +6,7 @@ use std::{error::Error, fmt::Display};
 pub enum MeasurementType {
     Ping,
     Http,
+    Traceroute,
 }
 
 impl Display for MeasurementType {
@@ -13,6 +14,7 @@ impl Display for MeasurementType {
         match self {
             MeasurementType::Ping => write!(f, "Ping"),
             MeasurementType::Http => write!(f, "HTTP"),
+            MeasurementType::Traceroute => write!(f, "Traceroute"),
         }
     }
 }
