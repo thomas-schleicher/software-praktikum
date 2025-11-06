@@ -21,7 +21,11 @@ impl Display for MeasurementType {
 
 impl MeasurementType {
     pub fn all() -> &'static [MeasurementType] {
-        &[MeasurementType::Ping, MeasurementType::Http]
+        &[
+            MeasurementType::Ping,
+            MeasurementType::Http,
+            MeasurementType::Traceroute,
+        ]
     }
 }
 

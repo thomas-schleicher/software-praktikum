@@ -8,6 +8,9 @@ pub enum Definition {
 
     #[serde(rename = "http")]
     Http(HttpDefinition),
+
+    #[serde(rename = "traceroute")]
+    Traceroute(TracerouteDefinition),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -52,9 +55,34 @@ pub struct HttpDefinition {
     pub interval: Option<u32>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct TracerouteDefinition {
+    #[serde(rename = "type")]
+    pub definition_type: String,
+    pub af: u8,
+    pub resolve_on_probe: bool,
+    pub description: String,
+    pub response_timeout: u32,
+    pub protocol: String,
+    pub packets: u32,
+    pub size: u32,
+    pub first_hop: u32,
+    pub max_hops: u32,
+    pub paris: u32,
+    pub destination_option_size: u32,
+    pub hop_by_hop_option_size: u32,
+    pub dont_fragment: bool,
+    pub skip_dns_check: bool,
+    pub port: Option<u16>,
+    pub target: String,
+    pub tags: Option<Vec<String>>,
+    pub interval: Option<u32>,
+}
+
 pub enum DefinitionTemplate {
     Ping(PingDefinition),
     Http(HttpDefinition),
+    Traceroute(TracerouteDefinition),
 }
 
 impl DefinitionTemplate {
@@ -69,6 +97,11 @@ impl DefinitionTemplate {
                 let mut clone = http_definition.clone();
                 clone.target = target.to_string();
                 Definition::Http(clone)
+            }
+            DefinitionTemplate::Traceroute(traceroute_definition) => {
+                let mut clone = traceroute_definition.clone();
+                clone.target = target.to_string();
+                Definition::Traceroute(clone)
             }
         }
     }
@@ -227,6 +260,123 @@ impl HttpDefinition {
 
     pub fn interval(mut self, interval: Option<u32>) -> Self {
         self.interval = interval;
+        self
+    }
+}
+
+#[allow(dead_code)]
+impl TracerouteDefinition {
+    pub fn template() -> Self {
+        Self {
+            definition_type: String::from("traceroute"),
+            af: 4,
+            resolve_on_probe: true,
+            description: String::new(),
+            response_timeout: 4000,
+            protocol: String::from("UDP"),
+            packets: 3,
+            size: 48,
+            first_hop: 1,
+            max_hops: 32,
+            paris: 16,
+            destination_option_size: 0,
+            hop_by_hop_option_size: 0,
+            dont_fragment: false,
+            skip_dns_check: false,
+            port: None,
+            target: String::new(),
+            tags: None,
+            interval: None,
+        }
+    }
+
+    pub fn af(mut self, af: u8) -> Self {
+        self.af = af;
+        self
+    }
+
+    pub fn description(mut self, description: &str) -> Self {
+        self.description = description.to_string();
+        self
+    }
+
+    pub fn resolve_on_probe(mut self, resolve: bool) -> Self {
+        self.resolve_on_probe = resolve;
+        self
+    }
+
+    pub fn response_timeout(mut self, response_timeout: u32) -> Self {
+        self.response_timeout = response_timeout;
+        self
+    }
+
+    pub fn protocol(mut self, protocol: String) -> Self {
+        self.protocol = protocol;
+        self
+    }
+
+    pub fn packets(mut self, packets: u32) -> Self {
+        self.packets = packets;
+        self
+    }
+
+    pub fn size(mut self, size: u32) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn paris(mut self, paris: u32) -> Self {
+        self.paris = paris;
+        self
+    }
+
+    pub fn first_hop(mut self, first_hop: u32) -> Self {
+        self.first_hop = first_hop;
+        self
+    }
+
+    pub fn max_hops(mut self, max_hops: u32) -> Self {
+        self.max_hops = max_hops;
+        self
+    }
+
+    pub fn destination_option_size(mut self, destination_option_size: u32) -> Self {
+        self.destination_option_size = destination_option_size;
+        self
+    }
+
+    pub fn hop_by_hop_option_size(mut self, hop_by_hop_option_size: u32) -> Self {
+        self.hop_by_hop_option_size = hop_by_hop_option_size;
+        self
+    }
+
+    pub fn skip_dns_check(mut self, skip_dns_check: bool) -> Self {
+        self.skip_dns_check = skip_dns_check;
+        self
+    }
+
+    pub fn port(mut self, port: Option<u16>) -> Self {
+        self.port = port;
+        self
+    }
+
+    pub fn target(mut self, target: String) -> Self {
+        self.target = target.into();
+        self
+    }
+
+    pub fn tags(mut self, tags: Option<Vec<String>>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    pub fn interval(mut self, interval: Option<u32>) -> Self {
+        self.interval = interval;
+        self
+    }
+
+    pub fn dont_fragment(mut self, dont_fragment: bool) -> Self {
+        self.dont_fragment = dont_fragment;
         self
     }
 }

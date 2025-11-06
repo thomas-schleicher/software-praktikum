@@ -1,4 +1,6 @@
-use crate::domain::definition::{DefinitionTemplate, HttpDefinition, PingDefinition};
+use crate::domain::definition::{
+    DefinitionTemplate, HttpDefinition, PingDefinition, TracerouteDefinition,
+};
 use common::configuration::configuration::Configuration;
 use uuid::Uuid;
 
@@ -27,6 +29,19 @@ pub fn create_definition_templates(
             .version(http_config.version)
             .interval(config.interval);
         templates.push(DefinitionTemplate::Http(https_template));
+    }
+
+    if let Some(traceroute_config) = &config.traceroute_configuration {
+        let traceroute_template = TracerouteDefinition::template()
+            .first_hop(traceroute_config.first_hop)
+            .protocol(traceroute_config.protocol.clone())
+            .packets(traceroute_config.packets)
+            .size(traceroute_config.size)
+            .max_hops(traceroute_config.max_hops)
+            .paris(traceroute_config.paris)
+            .dont_fragment(traceroute_config.dont_fragment)
+            .port(traceroute_config.port);
+        templates.push(DefinitionTemplate::Traceroute(traceroute_template));
     }
 
     if templates.is_empty() {

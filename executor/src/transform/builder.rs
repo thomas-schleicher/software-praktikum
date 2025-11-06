@@ -52,6 +52,9 @@ fn create_api_configs(
                         (DefinitionTemplate::Http(_), None) => {
                             unreachable!("HTTP templates imply the existance of a fqdn to be set");
                         }
+                        (DefinitionTemplate::Traceroute(_), _) => {
+                            definition_template.with_target(&connection.target_ipv4.as_str())
+                        }
                     },
                 )
                 .collect();
