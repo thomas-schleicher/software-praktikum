@@ -30,9 +30,10 @@ impl<'de> Deserialize<'de> for ProbeInformation {
 
         let address_v4 = value
             .get("ip_v4")
+            .or_else(|| value.get("address_v4"))
             .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .into();
+            .ok_or_else(|| serde::de::Error::missing_field("ip_v4 or address_v4"))?
+            .to_string();
 
         // let country_code = value
         //     .get("country")

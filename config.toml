@@ -1,0 +1,27 @@
+start_time = "2025-11-10T00:00:00Z"
+end_time = "2025-11-17T00:00:00Z"
+interval = 300
+mode = "all-to-all"
+
+[ping]
+packet_count = 3
+size = 48
+
+[http]
+path = "/"
+header_bytes = 0
+port = 80
+version = 1.1
+method = "GET"
+
+[traceroute]
+protocol = "UDP"
+packets = 3
+size = 48
+first_hop = 1
+max_hops = 32
+paris = 16
+dont_fragment = false
+
+[anchors]
+anchors = [1523,3042,2539,3825,729,1203,3712,1651,3948,4042]

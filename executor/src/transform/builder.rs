@@ -44,7 +44,7 @@ fn create_api_configs(
                 .map(
                     |definition_template| match (definition_template, &connection.target_fqdn) {
                         (DefinitionTemplate::Ping(_), _) => {
-                            definition_template.with_target(connection.target_ipv4.as_str())
+                            definition_template.with_target(&connection.target_ipv4.as_str())
                         }
                         (DefinitionTemplate::Http(_), Some(fqdn)) => {
                             definition_template.with_target(fqdn)

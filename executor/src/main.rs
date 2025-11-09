@@ -38,6 +38,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }))
     .await?;
 
+    //TODO: bug where only ping measurement_ids are being saved
+
     let measurement_ids: MeasurementIds = MeasurementIds {
         ids: measurements
             .iter()

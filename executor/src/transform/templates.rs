@@ -12,7 +12,7 @@ pub fn create_definition_templates(
 
     if let Some(ping_config) = &config.ping_configuration {
         let ping_template = PingDefinition::template()
-            .description(uuid.as_str())
+            .description(&uuid.as_str())
             .packets(ping_config.packet_count)
             .size(ping_config.size)
             .interval(config.interval);
@@ -21,7 +21,7 @@ pub fn create_definition_templates(
 
     if let Some(http_config) = &config.http_configuration {
         let https_template = HttpDefinition::template()
-            .description(uuid.as_str())
+            .description(&uuid.as_str())
             .method(http_config.method.clone())
             .path(http_config.path.clone())
             .port(http_config.port)
@@ -33,6 +33,7 @@ pub fn create_definition_templates(
 
     if let Some(traceroute_config) = &config.traceroute_configuration {
         let traceroute_template = TracerouteDefinition::template()
+            .description(&uuid.as_str())
             .first_hop(traceroute_config.first_hop)
             .protocol(traceroute_config.protocol.clone())
             .packets(traceroute_config.packets)
