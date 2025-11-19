@@ -4,7 +4,9 @@ use std::{collections::HashMap, error::Error, fs};
 use common::measurement_ids::MeasurementIds;
 use toml;
 
-use crate::api::results::{AggregatedMeasurement, FlattenedHttpMeasurement};
+use crate::api::results::{
+    AggregatedMeasurement, FlattenedHttpMeasurement, FlattenedTraceRouteMeasurement,
+};
 
 pub trait MeasurementSaver {
     fn save_by_type(&self, measurements: &[AggregatedMeasurement]) -> Result<(), Box<dyn Error>>;
@@ -60,7 +62,12 @@ impl MeasurementSaver for CsvSaver {
                 AggregatedMeasurement::Http(p) => {
                     writer.serialize(FlattenedHttpMeasurement::from_http_measurement(p))?
                 }
-                AggregatedMeasurement::TraceRoute(t) => writer.serialize(t)?,
+                AggregatedMeasurement::TraceRoute(t) => {
+                    let rows = FlattenedTraceRouteMeasurement::from_traceroute_measurement(t);
+                    for row in rows {
+                        writer.serialize(row)?;
+                    }
+                }
             }
         }
 
