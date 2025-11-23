@@ -136,6 +136,8 @@ pub struct HopResult {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FlattenedTraceRouteMeasurement {
     pub msm_id: u32,
+    pub src_addr: String,
+    pub dst_addr: String,
     pub hop: u32,
     pub sent: u32,
     pub received: u32,
@@ -175,18 +177,16 @@ impl FlattenedTraceRouteMeasurement {
                     (0.0, 0.0, 0.0)
                 };
 
-                let from = if timed_out {
-                    "timeout".to_string()
-                } else {
-                    hop_result
+                let from = hop_result
                         .result
                         .iter()
                         .find_map(|hr| hr.from.clone())
-                        .unwrap_or_else(|| "unknown".to_string())
-                };
+                        .unwrap_or_else(|| "unknown".to_string());
 
                 FlattenedTraceRouteMeasurement {
                     msm_id: traceroute_measurement.msm_id,
+                    src_addr: traceroute_measurement.src_addr.clone(),
+                    dst_addr: traceroute_measurement.dst_addr.clone(),
                     hop: hop_result.hop,
                     sent,
                     received,
