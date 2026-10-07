@@ -38,12 +38,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }))
     .await?;
 
-    //TODO: bug where only ping measurement_ids are being saved
-
     let measurement_ids: MeasurementIds = MeasurementIds {
         ids: measurements
             .iter()
-            .filter_map(|m| m.measurements.first().map(|id| id.to_string()))
+            .flat_map(|m| m.measurements.iter().map(|id| id.to_string()))
             .collect::<Vec<String>>(),
     };
 
