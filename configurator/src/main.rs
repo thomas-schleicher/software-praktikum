@@ -102,8 +102,10 @@ fn apply_appropriete_ids_for(
     let use_anchor: bool = measurement_types.contains(&MeasurementType::Http);
 
     let builder = match (topology, use_anchor) {
-        (TopologyMode::AllToAll, false) => builder.probes(prompt::probe::prompt_probes()?),
-        (TopologyMode::AllToAll, true) => builder.anchors(prompt::probe::prompt_anchors()?),
+        (TopologyMode::MeshFull, false) => builder.probes(prompt::probe::prompt_probes()?),
+        (TopologyMode::MeshFull, true) => builder.anchors(prompt::probe::prompt_anchors()?),
+        (TopologyMode::MeshDirectional, false) => builder.probes(prompt::probe::prompt_probes()?),
+        (TopologyMode::MeshDirectional, true) => builder.anchors(prompt::probe::prompt_anchors()?),
         (TopologyMode::CustomPairs, _) => {
             todo!("Implement Custom Pairs");
         }

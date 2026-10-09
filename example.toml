@@ -18,9 +18,9 @@ method = ""
 ids = ["probe-1", "probe-2", "probe-3"]
 
 [topology]
-mode = "all-to-all"  # options: "all-to-all" or "custom"
+mode = "mesh-directional"  # options: "mesh-directional", "mesh-full" or "custom"
 
-# If topology is not set to "all-to-"ll" measurements are constructed based on given topology pairs
+# If topology is not set to "mesh-full" measurements are constructed based on given topology pairs
 [[topology.pairs]]
 from = "probe-1"
 to = "probe-2"

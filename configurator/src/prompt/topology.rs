@@ -3,14 +3,16 @@ use std::{error::Error, fmt};
 
 #[derive(Debug, Clone, Copy)]
 pub enum TopologyMode {
-    AllToAll,
+    MeshFull,
+    MeshDirectional,
     CustomPairs,
 }
 
 impl fmt::Display for TopologyMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TopologyMode::AllToAll => write!(f, "all-to-all"),
+            TopologyMode::MeshFull => write!(f, "mesh-full"),
+            TopologyMode::MeshDirectional => write!(f, "mesh-directional"),
             TopologyMode::CustomPairs => write!(f, "custom pairs"),
         }
     }
@@ -18,13 +20,18 @@ impl fmt::Display for TopologyMode {
 
 impl TopologyMode {
     pub fn all() -> &'static [TopologyMode] {
-        &[TopologyMode::AllToAll, TopologyMode::CustomPairs]
+        &[
+            TopologyMode::MeshFull,
+            TopologyMode::MeshDirectional,
+            TopologyMode::CustomPairs,
+        ]
     }
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            TopologyMode::AllToAll => "All-to-all",
-            TopologyMode::CustomPairs => "Custom pairs",
+            TopologyMode::MeshFull => "mesh-full",
+            TopologyMode::MeshDirectional => "mesh-directional",
+            TopologyMode::CustomPairs => "custom",
         }
     }
 }
