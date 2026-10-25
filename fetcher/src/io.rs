@@ -60,7 +60,10 @@ impl MeasurementSaver for CsvSaver {
             match *entry {
                 AggregatedMeasurement::Ping(p) => writer.serialize(p)?,
                 AggregatedMeasurement::Http(p) => {
-                    writer.serialize(FlattenedHttpMeasurement::from_http_measurement(p))?
+                    match FlattenedHttpMeasurement::from_http_measurement(p) {
+                        Some(row) => writer.serialize(row)?,
+                        None => continue,
+                    }
                 }
                 AggregatedMeasurement::TraceRoute(t) => {
                     let rows = FlattenedTraceRouteMeasurement::from_traceroute_measurement(t);

@@ -45,18 +45,26 @@ pub struct HttpMeasurement {
     pub msm_id: u32,
     pub timestamp: usize,
     pub prb_id: u32,
+    // The probe address is reported at measurement level, which keeps DNS
+    // failures attributable even though their result has no `src_addr`.
+    #[serde(rename = "from")]
+    pub src_addr: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpResult {
-    pub method: String,
-    pub dst_addr: String,
+    #[serde(default)]
+    pub method: Option<String>,
+    #[serde(default)]
+    pub dst_addr: Option<String>,
     pub src_addr: Option<String>,
     pub rt: Option<f32>,
     pub res: Option<u32>,
     pub ver: Option<String>,
     pub hsize: Option<u32>,
     pub bsize: Option<u32>,
+    pub err: Option<String>,
+    pub dnserr: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,21 +81,26 @@ pub struct FlattenedHttpMeasurement {
     pub msm_id: u32,
     pub timestamp: usize,
     pub prb_id: u32,
+    pub err: Option<String>,
 }
 
 impl FlattenedHttpMeasurement {
-    pub fn from_http_measurement(measurement: &HttpMeasurement) -> Self {
-        let http_result = measurement
-            .result
-            .first()
-            .expect("Http measurement should contain exactly one result, first() is none");
-        Self {
+    pub fn from_http_measurement(measurement: &HttpMeasurement) -> Option<Self> {
+        let http_result = measurement.result.first()?;
+        Some(Self {
             ttr: measurement.ttr,
-            method: http_result.method.clone(),
-            dst_addr: http_result.dst_addr.clone(),
+            method: http_result
+                .method
+                .clone()
+                .unwrap_or_else(|| "timeout".to_string()),
+            dst_addr: http_result
+                .dst_addr
+                .clone()
+                .unwrap_or_else(|| "timeout".to_string()),
             src_addr: http_result
                 .src_addr
                 .clone()
+                .or_else(|| measurement.src_addr.clone())
                 .unwrap_or_else(|| "timeout".to_string()),
             rt: http_result.rt.unwrap_or_else(|| 0.0),
             res: http_result.res.unwrap_or_else(|| 408),
@@ -100,7 +113,11 @@ impl FlattenedHttpMeasurement {
             msm_id: measurement.msm_id,
             timestamp: measurement.timestamp,
             prb_id: measurement.prb_id,
-        }
+            err: http_result
+                .err
+                .clone()
+                .or_else(|| http_result.dnserr.clone()),
+        })
     }
 }
 
