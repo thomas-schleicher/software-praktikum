@@ -12,7 +12,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     from pathlib import Path
 
@@ -22,13 +22,13 @@ def _():
     return Path, mo, pl
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(Path):
     DATA_DIR = Path("data")
     return (DATA_DIR,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(DATA_DIR):
     protocol_files = {
         path.stem: path
@@ -38,16 +38,19 @@ def _(DATA_DIR):
     return (protocol_files,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(DATA_DIR, pl):
     metadata = pl.read_csv(DATA_DIR / "metadata.csv")
     return (metadata,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(pl, protocol_files):
     ping_raw = pl.read_csv(protocol_files["ping"])
-    http_raw = pl.read_csv(protocol_files["http"])
+    http_raw = pl.read_csv(
+        protocol_files["http"],
+        null_values=["timeout"]
+    )
     return http_raw, ping_raw
 
 
@@ -59,14 +62,14 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     from geopy.distance import geodesic
 
     return (geodesic,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(metadata, pl):
     node_pairs = (
         metadata
@@ -87,7 +90,7 @@ def _(metadata, pl):
     return (node_pairs,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(geodesic, node_pairs, pl):
     distances = node_pairs.with_columns(
         pl.struct(
@@ -106,6 +109,87 @@ def _(geodesic, node_pairs, pl):
 
 
 @app.cell(hide_code=True)
+def _(distances, node_order, pl):
+    distance_matrix = (
+        distances
+        .with_columns(
+            pl.col("distance_km").round(0).cast(pl.Int64)
+        )
+        .to_pandas()
+        .pivot(
+            index="src",
+            columns="dst",
+            values="distance_km",
+        )
+        .reindex(
+            index=node_order,
+            columns=node_order,
+        )
+    )
+    return (distance_matrix,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    def distance_matrix_to_latex(
+        matrix,
+        *,
+        caption="Distance matrix of locations used in evaluations in km.",
+        label="tab:distancematrix",
+        resize_width="0.8",
+    ):
+        locations = list(matrix.columns)
+        n_cols = len(locations) + 1
+
+        # Column spec: one left-aligned "Location" column + n right-aligned data columns
+        column_spec = "|l|" + "r|" * len(locations)
+
+        # Header row: Location + italic bold location names
+        header = (
+            r"\textit{\textbf{Location}} & "
+            + " & ".join(rf"\textit{{{loc}}}" for loc in locations)
+            + r" \\ \hline"
+        )
+
+        # Body rows
+        body_lines = []
+        for src, row in matrix.iterrows():
+            cells = []
+            for dst in locations:
+                value = row[dst]
+                cells.append("" if value is None else f"{int(value)}")
+            body_lines.append(
+                rf"\textit{{{src}}} & " + " & ".join(cells) + r" \\ \hline"
+            )
+        body = "\n".join(body_lines)
+
+        latex = (
+            "\\begin{table*}[ht]\n"
+            "\\centering\n"
+            f"\\resizebox{{{resize_width}\\textwidth}}{{!}}{{%\n"
+            f"\\begin{{tabular}}{{{column_spec}}}\n"
+            "\\hline\n"
+            f"{header}\n"
+            f"{body}\n"
+            "\\end{tabular}%\n"
+            "}\n"
+            f"\\caption{{{caption}}}\n"
+            f"\\label{{{label}}}\n"
+            "\\end{table*}"
+        )
+
+        return mo.md(f"```latex\n{latex}\n```")
+
+    return (distance_matrix_to_latex,)
+
+
+@app.cell
+def _(distance_matrix, distance_matrix_to_latex):
+    distance_matrix_to_latex(distance_matrix)
+    return
+
+
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     # Data Transformation
@@ -121,7 +205,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(metadata, ping_raw, pl):
     ping_with_nodes = ping_raw.join(
         metadata.select(
@@ -143,7 +227,7 @@ def _(metadata, ping_raw, pl):
     return (ping_with_nodes,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(distances, ping_with_nodes, pl):
     ping_enriched = ping_with_nodes.join(
         distances.select(["src", "dst", "distance_km"]),
@@ -164,7 +248,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(http_raw, metadata, pl):
     http_with_nodes = http_raw.join(
         metadata.select(
@@ -186,7 +270,7 @@ def _(http_raw, metadata, pl):
     return (http_with_nodes,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(distances, http_with_nodes, pl):
     http_enriched = http_with_nodes.join(
         distances.select(["src", "dst", "distance_km"]),
@@ -200,6 +284,261 @@ def _(distances, http_with_nodes, pl):
 
 
 @app.cell(hide_code=True)
+def _(http_failures, http_raw, mo, ping_failures, ping_raw):
+    http_attempts = http_raw.height
+    lost_packets = int(ping_failures["lost"].sum())
+    sent_packets = int(ping_raw["sent"].sum())
+    mo.md(
+        f"""
+        # Failure Analysis
+
+        A measurement counts as failed when
+
+        * **HTTP** reports an `err` for the request — DNS resolution failure,
+          connect timeout, or timeout while reading the status line, or
+        * **ICMP** receives fewer echo replies than were sent (`rcvd < sent`).
+
+        | Protocol | Attempts | Failures | Rate |
+        | --- | ---: | ---: | ---: |
+        | HTTP | {http_attempts:,} requests | {http_failures.height:,} | {http_failures.height / http_attempts:.2%} |
+        | ICMP | {sent_packets:,} packets | {lost_packets:,} lost | {lost_packets / sent_packets:.2%} |
+
+        ICMP failures hit {ping_failures.height:,} probe runs, of which
+        {ping_failures.filter(ping_failures["cause"] == "Total loss").height:,}
+        lost every packet.
+        """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(http_enriched, ping_enriched, pl):
+    # Every measurement targets exactly one destination. DNS failures carry no
+    # destination address, so recover it from the successful requests of the
+    # same measurement.
+    http_targets = (
+        http_enriched
+        .filter(pl.col("dst").is_not_null())
+        .group_by("msm_id")
+        .agg(pl.col("dst").first().alias("target"))
+    )
+    http_measurements = (
+        http_enriched
+        .join(http_targets, on="msm_id", how="left")
+        .with_columns(pl.coalesce("dst", "target").alias("dst"))
+    )
+
+    def classify_http_error(err):
+        if err.startswith("connect"):
+            return "Connect timeout"
+        if "name resolution" in err:
+            return "DNS resolution"
+        return "Read timeout"
+
+    http_failures = (
+        http_measurements
+        .filter(pl.col("err").is_not_null())
+        .with_columns(
+            pl.col("err")
+            .map_elements(classify_http_error, return_dtype=pl.String)
+            .alias("cause")
+        )
+    )
+
+    ping_failures = (
+        ping_enriched
+        .filter(pl.col("rcvd") < pl.col("sent"))
+        .with_columns(
+            pl.when(pl.col("rcvd") == 0)
+            .then(pl.lit("Total loss"))
+            .otherwise(pl.lit("Partial loss"))
+            .alias("cause"),
+            (pl.col("sent") - pl.col("rcvd")).alias("lost"),
+        )
+    )
+    return http_failures, http_measurements, ping_failures
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Failures by Destination Anchor
+
+    Grouping the failures by destination shows whether a problem is specific to
+    one anchor or spread across the network. HTTP failure counts are split by
+    cause; ICMP failures are split into runs that lost every packet and runs
+    with partial loss.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(http_failures, http_measurements, pl):
+    http_failure_summary = (
+        http_measurements
+        .group_by("dst")
+        .agg(pl.len().alias("requests"))
+        .join(
+            http_failures.group_by("dst").agg(
+                pl.len().alias("failed"),
+                (pl.col("cause") == "DNS resolution").sum().alias("DNS errors"),
+                (pl.col("cause") == "Connect timeout").sum().alias("Connect timeouts"),
+                (pl.col("cause") == "Read timeout").sum().alias("Read timeouts"),
+            ),
+            on="dst",
+            how="left",
+        )
+        .with_columns(
+            pl.col("failed", "DNS errors", "Connect timeouts", "Read timeouts")
+            .fill_null(0)
+        )
+        .with_columns(
+            (pl.col("failed") / pl.col("requests") * 100)
+            .round(3)
+            .alias("failure_%")
+        )
+        .sort("failure_%", descending=True)
+    )
+    http_failure_summary
+    return (http_failure_summary,)
+
+
+@app.cell(hide_code=True)
+def _(ping_enriched, ping_failures, pl):
+    ping_failure_summary = (
+        ping_enriched
+        .group_by("dst")
+        .agg(
+            pl.col("sent").sum().alias("packets"),
+            (pl.col("sent") - pl.col("rcvd")).sum().alias("lost_packets"),
+        )
+        .join(
+            ping_failures.group_by("dst").agg(
+                pl.len().alias("affected"),
+                (pl.col("cause") == "Total loss").sum().alias("Total loss"),
+                (pl.col("cause") == "Partial loss").sum().alias("Partial loss"),
+            ),
+            on="dst",
+            how="left",
+        )
+        .with_columns(
+            pl.col("affected", "Total loss", "Partial loss").fill_null(0)
+        )
+        .with_columns(
+            (pl.col("lost_packets") / pl.col("packets") * 100)
+            .round(3)
+            .alias("loss_%")
+        )
+        .sort("loss_%", descending=True)
+    )
+    ping_failure_summary
+    return (ping_failure_summary,)
+
+
+@app.cell(hide_code=True)
+def _(http_failure_summary, ping_failure_summary, plt):
+    failure_fig, (failure_ax_http, failure_ax_ping) = plt.subplots(1, 2, figsize=(16, 6))
+
+    failure_http_plot = http_failure_summary.sort("failed").to_pandas()
+    failure_left = None
+    for failure_label, failure_column, failure_color in [
+        ("DNS resolution", "DNS errors", "#4C72B0"),
+        ("Connect timeout", "Connect timeouts", "#DD8452"),
+        ("Read timeout", "Read timeouts", "#C44E52"),
+    ]:
+        failure_ax_http.barh(
+            failure_http_plot["dst"],
+            failure_http_plot[failure_column],
+            left=failure_left,
+            label=failure_label,
+            color=failure_color,
+        )
+        failure_left = (
+            failure_http_plot[failure_column]
+            if failure_left is None
+            else failure_left + failure_http_plot[failure_column]
+        )
+
+    for failure_row, (_, failure_values) in enumerate(
+        failure_http_plot.iterrows()
+    ):
+        failure_ax_http.text(
+            failure_values["failed"] + 0.6,
+            failure_row,
+            f"{int(failure_values['failed'])} ({failure_values['failure_%']:.2f}%)",
+            va="center",
+            fontsize=9,
+        )
+
+    failure_ax_http.set_xlim(0, failure_http_plot["failed"].max() * 1.4)
+    failure_ax_http.set_xlabel("Failed requests")
+    failure_ax_http.set_title("HTTP failures by destination")
+    failure_ax_http.legend(loc="lower right", title="Cause", frameon=True)
+    failure_ax_http.grid(axis="x", linestyle=":", alpha=0.4)
+
+    failure_ping_plot = ping_failure_summary.sort("affected").to_pandas()
+    failure_left = None
+    for failure_label, failure_column, failure_color in [
+        ("Total loss", "Total loss", "#C44E52"),
+        ("Partial loss", "Partial loss", "#DD8452"),
+    ]:
+        failure_ax_ping.barh(
+            failure_ping_plot["dst"],
+            failure_ping_plot[failure_column],
+            left=failure_left,
+            label=failure_label,
+            color=failure_color,
+        )
+        failure_left = (
+            failure_ping_plot[failure_column]
+            if failure_left is None
+            else failure_left + failure_ping_plot[failure_column]
+        )
+
+    for failure_row, (_, failure_values) in enumerate(
+        failure_ping_plot.iterrows()
+    ):
+        failure_ax_ping.text(
+            failure_values["affected"] + 0.5,
+            failure_row,
+            f"{int(failure_values['affected'])} ({failure_values['loss_%']:.2f}% loss)",
+            va="center",
+            fontsize=9,
+        )
+
+    failure_ax_ping.set_xlim(0, failure_ping_plot["affected"].max() * 1.5)
+    failure_ax_ping.set_xlabel("Affected probe runs")
+    failure_ax_ping.set_title("ICMP packet loss by destination")
+    failure_ax_ping.legend(loc="lower right", title="Failure", frameon=True)
+    failure_ax_ping.grid(axis="x", linestyle=":", alpha=0.4)
+
+    failure_fig.suptitle(
+        "Failed measurements per destination anchor", fontsize=16
+    )
+    plt.tight_layout()
+
+    failure_plot = failure_fig
+    failure_plot
+    return (failure_plot,)
+
+
+@app.cell(hide_code=True)
+def _(http_failures, mo, ping_failures):
+    mo.accordion(
+        {
+            f"HTTP failures ({http_failures.height})": http_failures.select(
+                "datetime", "src", "dst", "cause", "err", "prb_id", "msm_id"
+            ),
+            f"ICMP failures ({ping_failures.height})": ping_failures.select(
+                "datetime", "src", "dst", "cause", "sent", "rcvd", "lost", "prb_id",
+                "msm_id",
+            ),
+        }
+    )
+    return
+
+
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     # Heatmaps
@@ -207,7 +546,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -215,7 +554,7 @@ def _():
     return plt, sns
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(metadata):
     node_order = metadata["location"].to_list()
     return (node_order,)
@@ -318,7 +657,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(http_enriched, ping_enriched, pl):
     latency_heatmap_raw_ping = (
         ping_enriched
@@ -372,7 +711,7 @@ def _(latency_heatmap_raw_ping, node_order, plot_heatmap):
     )
 
     ping_heatmap_raw
-    return
+    return (ping_heatmap_raw,)
 
 
 @app.cell(hide_code=True)
@@ -383,7 +722,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(latency_heatmap_raw_http, node_order, plot_heatmap):
     heatmap_data_http_raw = (
         latency_heatmap_raw_http
@@ -409,7 +748,7 @@ def _(latency_heatmap_raw_http, node_order, plot_heatmap):
     )
 
     http_heatmap_raw
-    return
+    return (http_heatmap_raw,)
 
 
 @app.cell(hide_code=True)
@@ -420,7 +759,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(ping_enriched, pl):
     distance_latency = (
         ping_enriched
@@ -435,7 +774,7 @@ def _(ping_enriched, pl):
     return (distance_latency,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(distance_latency, plt, sns):
     import numpy as np
     from scipy.stats import linregress    
@@ -563,7 +902,7 @@ def _(distance_latency, plt, sns):
     plt.tight_layout()
 
     distance_ping_plot
-    return linregress, np
+    return distance_ping_plot, linregress, np
 
 
 @app.cell
@@ -574,7 +913,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(http_enriched, pl):
     http_distance_latency = (
         http_enriched
@@ -714,7 +1053,7 @@ def _(http_distance_latency, linregress, np, plt, sns):
     plt.tight_layout()
 
     http_distance_ping_plot
-    return
+    return (http_distance_ping_plot,)
 
 
 @app.cell(hide_code=True)
@@ -725,7 +1064,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(ping_enriched, pl):
     directional_latency = (
         ping_enriched
@@ -737,7 +1076,7 @@ def _(ping_enriched, pl):
     return (directional_latency,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(directional_latency, pl):
     forward = directional_latency.rename(
         {
@@ -777,11 +1116,6 @@ def _(directional_latency, pl):
         .sort("asymmetry_ms", descending=True)
     )
     return (asymmetry,)
-
-
-@app.cell
-def _():
-    return
 
 
 @app.cell(hide_code=True)
@@ -843,7 +1177,7 @@ def _(asymmetry, plt, sns):
     plt.tight_layout()
 
     asymmetry_plot
-    return
+    return (asymmetry_plot,)
 
 
 @app.cell
@@ -854,7 +1188,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(http_enriched, pl):
     http_directional_latency = (
         http_enriched
@@ -903,7 +1237,7 @@ def _(http_enriched, pl):
     return (http_asymmetry,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(http_asymmetry, plt, sns):
     http_asymmetry_plot, ax_http_asymmetry = plt.subplots(figsize=(8, 8))
 
@@ -962,11 +1296,249 @@ def _(http_asymmetry, plt, sns):
     plt.tight_layout()
 
     http_asymmetry_plot
+    return (http_asymmetry_plot,)
+
+
+@app.cell(hide_code=True)
+def _(ping_enriched, pl, plt, sns):
+    # 1. Per-run matched asymmetry (A->B paired with nearest-in-time B->A)
+    ping_runs = (
+        ping_enriched
+        .select(["src", "dst", "datetime", "avg", "prb_id"])
+        .drop_nulls(["avg", "datetime"])
+    )
+    ping_ab = ping_runs.rename({"src": "a", "dst": "b", "avg": "avg_ab"})
+    ping_ba = ping_runs.rename({"src": "b", "dst": "a", "avg": "avg_ba"})
+
+    per_run_asym_disagg = (
+        ping_ab
+        .sort("datetime")
+        .join_asof(
+            ping_ba.sort("datetime"),
+            left_on="datetime",
+            right_on="datetime",
+            by=["a", "b"],
+            strategy="nearest",
+            tolerance="10m",
+        )
+        .filter(pl.col("avg_ba").is_not_null())
+        .with_columns(
+            (pl.col("avg_ab") - pl.col("avg_ba")).alias("delta_ms"),
+            (
+                (pl.col("avg_ab") - pl.col("avg_ba")).abs()
+                / ((pl.col("avg_ab") + pl.col("avg_ba")) / 2)
+                * 100
+            ).alias("delta_pct"),
+        )
+    )
+
+    # 2. Summarize per pair: is the asymmetry persistent or intermittent?
+    asym_disagg_summary = (
+        per_run_asym_disagg
+        .group_by(["a", "b"])
+        .agg(
+            pl.len().alias("n_matched"),
+            pl.col("delta_pct").mean().alias("mean_pct"),
+            pl.col("delta_pct").median().alias("median_pct"),
+            pl.col("delta_pct").quantile(0.9).alias("p90_pct"),
+            (pl.col("delta_pct").abs() > 20).mean().alias("frac_gt_20pct"),
+        )
+        .with_columns(
+            pl.when(pl.col("median_pct").abs() > 10)
+            .then(pl.lit("Persistent"))
+            .otherwise(pl.lit("Intermittent / noise"))
+            .alias("regime")
+        )
+        .sort("p90_pct", descending=True)
+    )
+
+    # 3. Figure: per-pair per-run asymmetry distributions (top 20 pairs by p90)
+    top_pairs = asym_disagg_summary.head(20).select(["a", "b"])
+    asym_plot_data = (
+        per_run_asym_disagg
+        .join(top_pairs, on=["a", "b"], how="inner")
+        .with_columns(pl.concat_str(["a", "b"], separator=" → ").alias("pair"))
+        .to_pandas()
+    )
+    pair_order = (
+        asym_disagg_summary
+        .head(20)
+        .with_columns(pl.concat_str(["a", "b"], separator=" → ").alias("pair"))
+        ["pair"].to_list()
+    )
+
+    asym_disagg_fig, asym_disagg_ax = plt.subplots(figsize=(12, 10))
+
+    sns.stripplot(
+        data=asym_plot_data,
+        y="pair",
+        x="delta_pct",
+        order=pair_order,
+        size=4,
+        alpha=0.5,
+        color="#4C72B0",
+        ax=asym_disagg_ax,
+    )
+
+    sns.boxplot(
+        data=asym_plot_data,
+        y="pair",
+        x="delta_pct",
+        order=pair_order,
+        showfliers=False,
+        boxprops=dict(facecolor="none", edgecolor="#C44E52"),
+        whiskerprops=dict(color="#C44E52"),
+        capprops=dict(color="#C44E52"),
+        medianprops=dict(color="#C44E52", linewidth=2),
+        ax=asym_disagg_ax,
+    )
+
+    asym_disagg_ax.axvline(0, color="black", linewidth=1)
+    asym_disagg_ax.axvspan(-10, 10, color="gray", alpha=0.12,
+                           label="±10% band")
+    asym_disagg_ax.set_xlabel("Per-run directional asymmetry (%)", fontsize=15)
+    asym_disagg_ax.set_ylabel("Node pair (A → B)", fontsize=15)
+    asym_disagg_ax.set_title(
+        "Per-run asymmetry: persistent vs intermittent routing",
+        fontsize=17, pad=12,
+    )
+    asym_disagg_ax.tick_params(labelsize=11)
+    asym_disagg_ax.grid(axis="x", linestyle=":", alpha=0.4)
+    asym_disagg_ax.legend(fontsize=11, loc="lower right")
+    plt.tight_layout()
+
+    asym_disagg_fig
     return
 
 
 @app.cell
-def _():
+def _(classify_http_error_robust, http_measurements, pl):
+    unknown_errors = (
+        http_measurements
+        .filter(pl.col("err").is_not_null())
+        .with_columns(
+            pl.col("err")
+            .map_elements(classify_http_error_robust, return_dtype=pl.String)
+            .alias("cause")
+        )
+        .filter(pl.col("cause") == "Other")
+        .group_by("err")
+        .len()
+        .sort("len", descending=True)
+    )
+    unknown_errors
+    return
+
+
+@app.cell(hide_code=True)
+def _(http_enriched, pl, plt, sns):
+    # 1. Per-run matched asymmetry (A->B paired with nearest-in-time B->A)
+    http_runs = (
+        http_enriched
+        .select(["src", "dst", "datetime", "rt", "prb_id"])
+        .drop_nulls(["rt", "datetime"])
+    )
+    http_ab = http_runs.rename({"src": "a", "dst": "b", "rt": "rt_ab"})
+    http_ba = http_runs.rename({"src": "b", "dst": "a", "rt": "rt_ba"})
+
+    per_run_asym_http = (
+        http_ab
+        .sort("datetime")
+        .join_asof(
+            http_ba.sort("datetime"),
+            left_on="datetime",
+            right_on="datetime",
+            by=["a", "b"],
+            strategy="nearest",
+            tolerance="10m",
+        )
+        .filter(pl.col("rt_ba").is_not_null())
+        .with_columns(
+            (pl.col("rt_ab") - pl.col("rt_ba")).alias("delta_ms"),
+            (
+                (pl.col("rt_ab") - pl.col("rt_ba")).abs()
+                / ((pl.col("rt_ab") + pl.col("rt_ba")) / 2)
+                * 100
+            ).alias("delta_pct"),
+        )
+    )
+
+    # 2. Summarize per pair: is the asymmetry persistent or intermittent?
+    asym_http_summary = (
+        per_run_asym_http
+        .group_by(["a", "b"])
+        .agg(
+            pl.len().alias("n_matched"),
+            pl.col("delta_pct").mean().alias("mean_pct"),
+            pl.col("delta_pct").median().alias("median_pct"),
+            pl.col("delta_pct").quantile(0.9).alias("p90_pct"),
+            (pl.col("delta_pct").abs() > 20).mean().alias("frac_gt_20pct"),
+        )
+        .with_columns(
+            pl.when(pl.col("median_pct").abs() > 10)
+            .then(pl.lit("Persistent"))
+            .otherwise(pl.lit("Intermittent / noise"))
+            .alias("regime")
+        )
+        .sort("p90_pct", descending=True)
+    )
+
+    # 3. Figure: per-pair per-run asymmetry distributions (top 20 pairs by p90)
+    http_top_pairs = asym_http_summary.head(20).select(["a", "b"])
+    http_asym_plot_data = (
+        per_run_asym_http
+        .join(http_top_pairs, on=["a", "b"], how="inner")
+        .with_columns(pl.concat_str(["a", "b"], separator=" → ").alias("pair"))
+        .to_pandas()
+    )
+    http_pair_order = (
+        asym_http_summary
+        .head(20)
+        .with_columns(pl.concat_str(["a", "b"], separator=" → ").alias("pair"))
+        ["pair"].to_list()
+    )
+
+    http_asym_disagg_fig, http_asym_disagg_ax = plt.subplots(figsize=(12, 10))
+
+    sns.stripplot(
+        data=http_asym_plot_data,
+        y="pair",
+        x="delta_pct",
+        order=http_pair_order,
+        size=4,
+        alpha=0.5,
+        color="#4C72B0",
+        ax=http_asym_disagg_ax,
+    )
+
+    sns.boxplot(
+        data=http_asym_plot_data,
+        y="pair",
+        x="delta_pct",
+        order=http_pair_order,
+        showfliers=False,
+        boxprops=dict(facecolor="none", edgecolor="#C44E52"),
+        whiskerprops=dict(color="#C44E52"),
+        capprops=dict(color="#C44E52"),
+        medianprops=dict(color="#C44E52", linewidth=2),
+        ax=http_asym_disagg_ax,
+    )
+
+    http_asym_disagg_ax.axvline(0, color="black", linewidth=1)
+    http_asym_disagg_ax.axvspan(-10, 10, color="gray", alpha=0.12,
+                                label="±10% band")
+    http_asym_disagg_ax.set_xlabel("Per-run directional asymmetry (%)", fontsize=15)
+    http_asym_disagg_ax.set_ylabel("Node pair (A → B)", fontsize=15)
+    http_asym_disagg_ax.set_title(
+        "HTTP per-run asymmetry: persistent vs intermittent routing",
+        fontsize=17, pad=12,
+    )
+    http_asym_disagg_ax.tick_params(labelsize=11)
+    http_asym_disagg_ax.grid(axis="x", linestyle=":", alpha=0.4)
+    http_asym_disagg_ax.legend(fontsize=11, loc="lower right")
+    plt.tight_layout()
+
+    http_asym_disagg_fig
     return
 
 
@@ -978,7 +1550,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(metadata, ping_enriched, pl):
     import geopandas as gpd
     from matplotlib.colors import Normalize
@@ -1054,7 +1626,7 @@ def _(metadata, ping_enriched, pl):
     return Normalize, ScalarMappable, connection_lines, gpd, nodes_europe
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(Normalize, connection_lines, gpd, plt):
     # Country boundaries from Natural Earth
     world_map = gpd.read_file(
@@ -1077,7 +1649,7 @@ def _(Normalize, connection_lines, gpd, plt):
     return cmap, euro_map, norm
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     ScalarMappable,
     cmap,
@@ -1165,6 +1737,54 @@ def _(
 
     plt.tight_layout()
     euro_network_plot
+    return (euro_network_plot,)
+
+
+@app.cell
+def _(
+    Path,
+    asymmetry_plot,
+    distance_ping_plot,
+    euro_network_plot,
+    failure_plot,
+    http_asymmetry_plot,
+    http_distance_ping_plot,
+    http_heatmap_raw,
+    mo,
+    ping_heatmap_raw,
+):
+    # Directory where the notebook lives
+    figure_dir = Path("notebooks/figures/")
+
+    # Map of descriptive names to the figures created in this notebook
+    figures_to_export = {
+        "distance_ping": distance_ping_plot,
+        "http_distance_ping": http_distance_ping_plot,
+        "ping_heatmap_raw": ping_heatmap_raw,
+        "http_heatmap_raw": http_heatmap_raw,
+        "asymmetry": asymmetry_plot,
+        "http_asymmetry": http_asymmetry_plot,
+        "euro_network": euro_network_plot,
+        "failures": failure_plot,
+    }
+
+    for name, fig in figures_to_export.items():
+        fig.savefig(
+            figure_dir / f"{name}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        fig.savefig(
+            figure_dir / f"{name}.svg",
+            bbox_inches="tight",
+        )
+
+    exported_figure_names = list(figures_to_export)
+    mo.md(
+        "**Exported figures to "
+        f"`{figure_dir}`:** "
+        + ", ".join(f"`{n}`" for n in exported_figure_names)
+    )
     return
 
 
